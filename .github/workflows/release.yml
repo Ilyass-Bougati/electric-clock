@@ -139,6 +139,10 @@ jobs:
       - name: Publish to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job never checks out the source -- it only needs the built
+          # files -- so there is no .git for gh to infer the repository from.
+          # Naming it explicitly keeps gh entirely on the API.
+          GH_REPO: ${{ github.repository }}
         run: |
           mapfile -t assets < <(
             find artifacts -type f \( \
