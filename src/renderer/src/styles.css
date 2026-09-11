@@ -1,0 +1,360 @@
+@import 'tailwindcss';
+
+/*
+ * Every colour in the app is a variable. Components reference the Tailwind
+ * aliases below (bg-bg, text-fg-muted, ...) which resolve to these at
+ * runtime, so a theme flip is one attribute change on <html>.
+ */
+@theme inline {
+  --font-sans: var(--ui-family);
+  --font-clock: var(--display-family);
+
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-hover: var(--hover);
+  --color-raised: var(--raised);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+
+  --text-time: var(--size-time);
+  --text-body: var(--size-body);
+  --text-meta: var(--size-meta);
+}
+
+/*
+ * Registering the two ambient washes as real colours is what lets them
+ * cross-fade when the weather changes; an unregistered custom property
+ * would snap from one gradient to the next.
+ */
+@property --tone-a {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0);
+}
+
+@property --tone-b {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0);
+}
+
+:root {
+  /*
+   * Three type sizes carry the whole hierarchy; weight does the rest.
+   * Each tracks the *smaller* window dimension, so going full screen on a
+   * wide monitor scales the clock up instead of stranding it in the middle
+   * of an empty 16:9 field.
+   */
+  --size-time: clamp(4.5rem, min(15vw, 26vh), 18rem);
+  --size-body: clamp(1.125rem, min(2.1vw, 3.4vh), 2rem);
+  --size-meta: clamp(0.8125rem, min(1.15vw, 1.85vh), 1.0625rem);
+
+  --ease: cubic-bezier(0.32, 0.08, 0.24, 1);
+  --duration: 240ms;
+
+  /* The UI is always set in Inter; only the dashboard changes face. */
+  --ui-family: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --display-family: var(--ui-family);
+  --display-axes: normal;
+  --display-track: -0.045em;
+
+  /* Light: an off-white ground, never #fff. */
+  --bg: #f2f2f0;
+  --fg: #111317;
+  --fg-muted: #54585f;
+  --fg-faint: #8b8f97;
+  --hover: rgba(18, 20, 25, 0.055);
+  --raised: #fdfdfc;
+  --accent: #1b1e23;
+  --accent-fg: #fafafa;
+
+  --grain: 0.055;
+  --glass-lift: 1.06;
+  --glass-blur: 26px;
+  --panel-lift: 1.12;
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --shadow-panel: 0 2px 8px rgba(16, 18, 23, 0.06), 0 40px 90px -24px rgba(16, 18, 23, 0.34);
+  --scrim: rgba(236, 236, 234, 0.68);
+
+  --glyph-body: #6b7079;
+  --glyph-sun: #ef9f33;
+  --glyph-rain: #4e8ac9;
+  --glyph-snow: #7fb4d3;
+  --glyph-bolt: #e0aa2e;
+}
+
+/* Dark: a deep neutral, never #000. */
+:root[data-theme='dark'] {
+  --bg: #101214;
+  --fg: #eef0f3;
+  --fg-muted: #a0a6ae;
+  --fg-faint: #6a717a;
+  --hover: rgba(255, 255, 255, 0.06);
+  --raised: #1a1d21;
+  --accent: #e9ebee;
+  --accent-fg: #14171a;
+
+  --grain: 0.08;
+  --glass-lift: 1.85;
+  --glass-blur: 26px;
+  --panel-lift: 1.95;
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-panel: 0 2px 10px rgba(0, 0, 0, 0.5), 0 44px 96px -28px rgba(0, 0, 0, 0.85);
+  --scrim: rgba(9, 10, 12, 0.74);
+
+  --glyph-body: #98a0aa;
+  --glyph-sun: #f5b855;
+  --glyph-rain: #6aa6e0;
+  --glyph-snow: #9fcfe8;
+  --glyph-bolt: #f0c455;
+}
+
+/*
+ * The clock's typeface. Each face gets its own tracking, because the same
+ * letter-spacing that tightens a grotesque wrecks a serif or a monospace.
+ */
+:root[data-font='grotesk'] {
+  --display-family: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --display-track: -0.035em;
+}
+
+:root[data-font='fraunces'] {
+  --display-family: 'Fraunces Variable', ui-serif, Georgia, serif;
+  /* Fraunces is an optical-size design: at clock scale it wants the display
+     cut, softened corners and a touch of the WONK axis for personality. */
+  --display-axes: 'opsz' 144, 'SOFT' 40, 'WONK' 1;
+  --display-track: -0.025em;
+}
+
+:root[data-font='mono'] {
+  --display-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --display-track: -0.055em;
+}
+
+/* Ambient washes, per condition and per theme. */
+:root {
+  --tone-a: rgba(205, 212, 225, 0.5);
+  --tone-b: rgba(168, 180, 198, 0.32);
+}
+:root[data-tone='clear'] {
+  --tone-a: rgba(255, 193, 110, 0.44);
+  --tone-b: rgba(140, 186, 233, 0.32);
+}
+:root[data-tone='rain'] {
+  --tone-a: rgba(122, 166, 214, 0.42);
+  --tone-b: rgba(92, 124, 168, 0.3);
+}
+:root[data-tone='snow'] {
+  --tone-a: rgba(198, 222, 238, 0.58);
+  --tone-b: rgba(158, 190, 213, 0.32);
+}
+:root[data-tone='storm'] {
+  --tone-a: rgba(151, 139, 203, 0.4);
+  --tone-b: rgba(94, 102, 150, 0.32);
+}
+:root[data-tone='fog'] {
+  --tone-a: rgba(207, 209, 212, 0.6);
+  --tone-b: rgba(175, 179, 186, 0.34);
+}
+:root[data-tone='dust'] {
+  --tone-a: rgba(228, 195, 149, 0.46);
+  --tone-b: rgba(190, 166, 134, 0.3);
+}
+
+:root[data-theme='dark'] {
+  --tone-a: rgba(104, 118, 140, 0.26);
+  --tone-b: rgba(52, 62, 78, 0.32);
+}
+:root[data-theme='dark'][data-tone='clear'] {
+  --tone-a: rgba(232, 150, 62, 0.24);
+  --tone-b: rgba(66, 114, 178, 0.28);
+}
+:root[data-theme='dark'][data-tone='rain'] {
+  --tone-a: rgba(60, 112, 176, 0.28);
+  --tone-b: rgba(38, 66, 110, 0.34);
+}
+:root[data-theme='dark'][data-tone='snow'] {
+  --tone-a: rgba(124, 176, 206, 0.26);
+  --tone-b: rgba(68, 104, 132, 0.3);
+}
+:root[data-theme='dark'][data-tone='storm'] {
+  --tone-a: rgba(126, 104, 196, 0.28);
+  --tone-b: rgba(58, 50, 104, 0.36);
+}
+:root[data-theme='dark'][data-tone='fog'] {
+  --tone-a: rgba(120, 126, 134, 0.26);
+  --tone-b: rgba(56, 62, 70, 0.32);
+}
+:root[data-theme='dark'][data-tone='dust'] {
+  --tone-a: rgba(196, 152, 96, 0.26);
+  --tone-b: rgba(118, 94, 64, 0.3);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--fg);
+  background-color: var(--bg);
+  font-family: var(--ui-family);
+  /* Digits must not change width, or the clock jitters every second. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+@utility drag {
+  -webkit-app-region: drag;
+}
+
+/*
+ * Anything clickable inside the drag strip must opt out explicitly, or the
+ * drag handler swallows the click.
+ */
+@utility no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * The weather strip has no surface of its own. It lifts off the page by
+ * blurring and brightening what is behind it -- which is why the ambient
+ * washes and the grain exist: blur needs something to act on.
+ */
+@utility glass {
+  /*
+   * Scattered light, not a fill: blur softens the grain and the washes,
+   * saturate keeps the condition colour from going grey, and brightness is
+   * what actually lifts the shape off the page. On a near-black ground a
+   * small multiplier is invisible, which is why dark mode lifts much harder
+   * than light mode does.
+   */
+  /* Unprefixed only. Lightning CSS adds the -webkit- form itself when its
+     targets need it; hand-writing both makes it keep just the prefixed one,
+     which Chromium then ignores. */
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.6) brightness(var(--glass-lift));
+}
+
+/* The settings panel is glass too -- one material, used consistently. */
+@utility glass-panel {
+  /* Heavier than the strip on purpose: a panel of dense text cannot have a
+     recognisable clock face showing through it. */
+  backdrop-filter: blur(64px) saturate(1.35) brightness(var(--panel-lift));
+}
+
+@utility display-face {
+  font-family: var(--display-family);
+  font-variation-settings: var(--display-axes);
+}
+
+@utility transition-soft {
+  transition-property: background-color, color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--duration);
+  transition-timing-function: var(--ease);
+}
+
+@utility label-meta {
+  font-size: var(--size-meta);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+button {
+  cursor: default;
+}
+
+input {
+  cursor: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--fg-faint);
+  outline-offset: 2px;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover) transparent;
+}
+
+/* The washes cross-fade slowly; a clock should never flicker. */
+.ambient-wash {
+  background-image:
+    radial-gradient(62% 52% at 18% 8%, var(--tone-a), transparent 68%),
+    radial-gradient(58% 48% at 84% 92%, var(--tone-b), transparent 70%);
+  transition:
+    --tone-a 900ms var(--ease),
+    --tone-b 900ms var(--ease);
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-overlay {
+  animation: overlay-in 200ms var(--ease) both;
+}
+
+.animate-panel {
+  animation: panel-in 260ms var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-overlay,
+  .animate-panel {
+    animation: none;
+  }
+
+  .transition-soft {
+    transition-duration: 1ms;
+  }
+
+  .ambient-wash {
+    transition-duration: 1ms;
+  }
+}
+
+/* Native colour wells, restyled as a plain round swatch. */
+input[type='color'] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  box-shadow: var(--edge), 0 0 0 1px var(--hover);
+}
+
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type='color']::-webkit-color-swatch {
+  border: none;
+  border-radius: 9999px;
+}
