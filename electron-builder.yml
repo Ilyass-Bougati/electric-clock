@@ -1,0 +1,42 @@
+appId: com.ilyassbougati.electric-clock
+productName: Electric Clock
+copyright: Copyright (c) 2026 Ilyass Bougati
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the bundled output ships. src/, node_modules/ and the toolchain stay
+# out of the package; electron-vite has already inlined everything needed.
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+
+# No auto-updater, so no update feed and no latest-*.yml alongside the
+# artifacts. Without this electron-builder writes one by default.
+publish: null
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  icon: build/icon.png
+  # A .deb will not build without a maintainer address.
+  maintainer: Ilyass Bougati <i.bougati12@gmail.com>
+  synopsis: A desktop clock and weather dashboard
+  description: >
+    A desktop clock and weather dashboard. Shows the current time and today's
+    weather, and nothing else. Weather data from Open-Meteo.
+  desktop:
+    entry:
+      Keywords: clock;time;weather;
+      StartupWMClass: electric-clock
+
+appImage:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}

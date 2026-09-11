@@ -21,6 +21,18 @@ const BACKDROP: Record<ResolvedTheme, string> = {
   dark: '#101214'
 }
 
+/*
+ * Pin the config directory to the package name.
+ *
+ * A packaged build carries electron-builder's productName ("Electric Clock"),
+ * and Electron prefers that over `name` when deriving userData -- so an
+ * installed app would silently read a different config file from the one
+ * `npm run dev` writes, and the user's settings would appear to vanish on
+ * install. Setting it explicitly makes both agree. It has to happen before
+ * anything touches the path, hence module scope rather than whenReady.
+ */
+app.setPath('userData', join(app.getPath('appData'), 'electric-clock'))
+
 let mainWindow: BrowserWindow | null = null
 let store: ConfigStore
 let weather: WeatherService

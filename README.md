@@ -15,6 +15,49 @@ npm run build    # typecheck both projects, then bundle to out/
 npm start        # run the bundled app
 ```
 
+`out/` is bundled JavaScript, not a distributable -- it still needs the
+Electron runtime from `node_modules`. For something you can hand to someone:
+
+```bash
+npm run dist     # AppImage + .deb into release/
+npm run dist:dir # unpacked directory only, for a quick check
+```
+
+The AppImage is a single executable: `chmod +x` and run it, no install. The
+`.deb` installs to `/opt`, registers a launcher entry and an icon, and removes
+cleanly. Linux targets build natively; a Windows installer would need wine and
+a macOS `.dmg` genuinely needs a Mac.
+
+The app icon is `build/icon.png` (512x512, RGBA). Nothing on Linux masks an
+app icon for you -- GNOME and KDE draw exactly the pixels you ship -- so the
+corner radius has to be baked into the file:
+
+```bash
+npm run icon                  # rounds build/icon-source.png -> build/icon.png
+npm run icon -- artwork.png   # or any path
+```
+
+`scripts/round-icon.sh` cover-fits to 512x512 and applies a 22% radius. Keep
+the unrounded artwork at `build/icon-source.png` so it can be re-run. It needs
+ImageMagick, and it forces sRGB + `png:color-type=6` on the way out: a
+near-monochrome icon gets detected as grayscale otherwise, and ImageMagick
+then writes a PNG with no alpha at all -- the rounded corners come out opaque
+black rather than transparent.
+
+Two details worth knowing:
+
+- **The config path is pinned.** A packaged build carries electron-builder's
+  `productName` ("Electric Clock"), and Electron prefers that over `name` when
+  deriving `userData` -- so an installed app would read a *different* config
+  file from the one `npm run dev` writes, and settings would appear to vanish
+  on install. `src/main/index.ts` calls `app.setPath('userData', ...)` at
+  module scope to make both agree on `electric-clock`.
+- **The `desktopName` warning during a build is benign.** Window association
+  works because `linux.desktop.entry.StartupWMClass` is set to
+  `electric-clock`, which is the WM_CLASS Electron actually reports (verified
+  with `xwininfo`). Taking electron-builder's suggested fix would change the
+  app_id to something that no longer matches.
+
 ## Stack
 
 electron-vite, React, TypeScript, Tailwind CSS v4. Weather and city search come
