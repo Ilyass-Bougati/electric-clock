@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  CONFIG_VERSION,
   DEFAULT_CONFIG,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
@@ -36,6 +37,35 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 }
 
 const HEX_COLOUR = /^#[0-9a-f]{6}$/i
+
+/**
+ * Faces that existed before the clock went monospace-only. Fraunces had no
+ * tabular figures and shifted the time sideways on every tick; the others
+ * were fine but went with it. Each maps to its nearest surviving relative so
+ * an upgrade changes the typeface rather than silently resetting it.
+ */
+const RETIRED_FONTS: Record<string, FontChoice> = {
+  mono: 'jetbrains',
+  inter: 'geist',
+  grotesk: 'martian',
+  fraunces: 'martian'
+}
+
+/**
+ * Rewrites values whose meaning changed between schema versions. Anything
+ * merely added since is handled by the field-level defaults below, so only
+ * genuine renames need to appear here.
+ */
+function migrate(raw: Record<string, unknown>): Record<string, unknown> {
+  const version = typeof raw.version === 'number' ? raw.version : 1
+  if (version >= CONFIG_VERSION) return raw
+
+  const next = { ...raw }
+  const retired = typeof raw.fontFamily === 'string' ? RETIRED_FONTS[raw.fontFamily] : undefined
+  if (retired) next.fontFamily = retired
+
+  return next
+}
 
 function normalizeCustomPalette(raw: unknown): CustomPalette {
   const fallback = DEFAULT_CONFIG.customPalette
@@ -94,12 +124,14 @@ function normalizeBounds(raw: unknown): WindowBounds {
  * Every field is validated independently, so one bad value costs only that
  * value -- a config with a garbled theme keeps the user's saved city.
  */
-function normalizeConfig(raw: unknown): AppConfig {
-  if (!isRecord(raw)) return structuredClone(DEFAULT_CONFIG)
+function normalizeConfig(input: unknown): AppConfig {
+  if (!isRecord(input)) return structuredClone(DEFAULT_CONFIG)
 
+  const raw = migrate(input)
   const override = typeof raw.timezoneOverride === 'string' ? raw.timezoneOverride : null
 
   return {
+    version: CONFIG_VERSION,
     location: normalizeLocation(raw.location),
     timezoneOverride: override && isValidTimeZone(override) ? override : null,
     theme: oneOf<ThemePreference>(raw.theme, ['system', 'light', 'dark'], 'system'),
@@ -111,8 +143,8 @@ function normalizeConfig(raw: unknown): AppConfig {
     hourCycle: oneOf<HourCyclePreference>(raw.hourCycle, ['system', '12', '24'], 'system'),
     fontFamily: oneOf<FontChoice>(
       raw.fontFamily,
-      ['inter', 'grotesk', 'fraunces', 'mono'],
-      'inter'
+      ['jetbrains', 'geist', 'martian', 'redhat'],
+      'jetbrains'
     ),
     background: oneOf<BackgroundChoice>(
       raw.background,

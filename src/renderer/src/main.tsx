@@ -1,13 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-// The four selectable display faces. Browsers only download a face that
-// something on screen is actually set in, so three of these cost nothing
-// until the user picks them. Fraunces uses its full build for the optical
-// size, SOFT and WONK axes the clock leans on.
+// Inter sets the UI. The four monospaced faces below are the selectable
+// clock typefaces -- all monospaced so the time never reflows as it ticks
+// (`npm run check:fonts` measures that). Browsers only download a face that
+// something on screen is actually set in, so the unpicked ones cost nothing.
 import '@fontsource-variable/inter'
-import '@fontsource-variable/space-grotesk'
-import '@fontsource-variable/fraunces/full.css'
 import '@fontsource-variable/jetbrains-mono'
+import '@fontsource-variable/geist-mono'
+import '@fontsource-variable/martian-mono'
+import '@fontsource-variable/red-hat-mono'
 import './styles.css'
 import App from './App'
 

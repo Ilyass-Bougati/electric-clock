@@ -198,6 +198,10 @@ export function Settings({
               />
             </Row>
           </Section>
+
+          <p className="pt-1 text-meta text-fg-faint">
+            Electric Clock {window.api.app.version}
+          </p>
         </div>
       </div>
     </div>

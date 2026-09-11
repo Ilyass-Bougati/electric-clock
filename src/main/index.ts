@@ -114,7 +114,7 @@ function createWindow(): void {
     title: 'Electric Clock',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      additionalArguments: [`--app-theme=${theme}`],
+      additionalArguments: [`--app-theme=${theme}`, `--app-version=${app.getVersion()}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true

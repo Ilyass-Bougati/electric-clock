@@ -47,7 +47,7 @@
    * wide monitor scales the clock up instead of stranding it in the middle
    * of an empty 16:9 field.
    */
-  --size-time: clamp(4.5rem, min(15vw, 26vh), 18rem);
+  --size-time: calc(clamp(4.5rem, min(15vw, 26vh), 18rem) * var(--display-scale, 1));
   --size-body: clamp(1.125rem, min(2.1vw, 3.4vh), 2rem);
   --size-meta: clamp(0.8125rem, min(1.15vw, 1.85vh), 1.0625rem);
 
@@ -56,9 +56,11 @@
 
   /* The UI is always set in Inter; only the dashboard changes face. */
   --ui-family: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --display-family: var(--ui-family);
-  --display-axes: normal;
-  --display-track: -0.045em;
+  --display-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --display-track: -0.055em;
+  /* Monospace faces differ a lot in advance width; the wide ones need to be
+     set smaller or an eight-character clock overruns a narrow window. */
+  --display-scale: 1;
 
   /* Light: an off-white ground, never #fff. */
   --bg: #f2f2f0;
@@ -112,25 +114,25 @@
 }
 
 /*
- * The clock's typeface. Each face gets its own tracking, because the same
- * letter-spacing that tightens a grotesque wrecks a serif or a monospace.
+ * The clock's typeface. All four are monospaced, so the time cannot reflow as
+ * the digits change. Each carries its own tracking and scale: the spacing
+ * that suits a narrow mono ruins a wide one, and the widest face has to be
+ * set smaller or an eight-character clock overruns a narrow window.
  */
-:root[data-font='grotesk'] {
-  --display-family: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
-  --display-track: -0.035em;
+:root[data-font='geist'] {
+  --display-family: 'Geist Mono Variable', ui-monospace, monospace;
+  --display-track: -0.05em;
 }
 
-:root[data-font='fraunces'] {
-  --display-family: 'Fraunces Variable', ui-serif, Georgia, serif;
-  /* Fraunces is an optical-size design: at clock scale it wants the display
-     cut, softened corners and a touch of the WONK axis for personality. */
-  --display-axes: 'opsz' 144, 'SOFT' 40, 'WONK' 1;
-  --display-track: -0.025em;
+:root[data-font='martian'] {
+  --display-family: 'Martian Mono Variable', ui-monospace, monospace;
+  --display-track: -0.08em;
+  --display-scale: 0.8;
 }
 
-:root[data-font='mono'] {
-  --display-family: 'JetBrains Mono Variable', ui-monospace, monospace;
-  --display-track: -0.055em;
+:root[data-font='redhat'] {
+  --display-family: 'Red Hat Mono Variable', ui-monospace, monospace;
+  --display-track: -0.045em;
 }
 
 /* Ambient washes, per condition and per theme. */
@@ -251,7 +253,6 @@ body {
 
 @utility display-face {
   font-family: var(--display-family);
-  font-variation-settings: var(--display-axes);
 }
 
 @utility transition-soft {

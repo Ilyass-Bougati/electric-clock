@@ -5,42 +5,40 @@ import { cn } from '../lib/cn'
 interface FaceOption {
   value: FontChoice
   label: string
-  /** The CSS stack and axis settings, mirroring styles.css. */
+  /** The CSS stack, mirroring styles.css. */
   family: string
-  axes: string
   track: string
+  /** Matches --display-scale, so the tile previews the real proportions. */
+  scale?: number
 }
 
 const FACES: readonly FaceOption[] = [
   {
-    value: 'inter',
-    label: 'Inter',
-    family: "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
-    axes: 'normal',
-    track: '-0.045em'
-  },
-  {
-    value: 'grotesk',
-    label: 'Grotesk',
-    family: "'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif",
-    axes: 'normal',
-    track: '-0.035em'
-  },
-  {
-    value: 'fraunces',
-    label: 'Fraunces',
-    family: "'Fraunces Variable', ui-serif, Georgia, serif",
-    // The preview is ~10x smaller than the clock, so it needs the text
-    // optical size; the display cut goes hairline at this scale.
-    axes: "'opsz' 36, 'SOFT' 40, 'WONK' 1",
-    track: '-0.025em'
-  },
-  {
-    value: 'mono',
-    label: 'Mono',
+    value: 'jetbrains',
+    label: 'JetBrains',
     family: "'JetBrains Mono Variable', ui-monospace, monospace",
-    axes: 'normal',
     track: '-0.055em'
+  },
+  {
+    value: 'geist',
+    label: 'Geist',
+    family: "'Geist Mono Variable', ui-monospace, monospace",
+    track: '-0.05em'
+  },
+  {
+    value: 'martian',
+    label: 'Martian',
+    family: "'Martian Mono Variable', ui-monospace, monospace",
+    // Martian is much wider than the rest; the preview has to shrink to fit
+    // the same tile as the others.
+    track: '-0.08em',
+    scale: 0.78
+  },
+  {
+    value: 'redhat',
+    label: 'Red Hat',
+    family: "'Red Hat Mono Variable', ui-monospace, monospace",
+    track: '-0.045em'
   }
 ]
 
@@ -70,11 +68,11 @@ export function FontPicker({ value, onChange }: FontPickerProps): ReactNode {
             )}
           >
             <span
-              className="text-[1.375rem] font-medium leading-none"
+              className="font-medium leading-none"
               style={{
                 fontFamily: face.family,
-                fontVariationSettings: face.axes,
-                letterSpacing: face.track
+                letterSpacing: face.track,
+                fontSize: `${1.375 * (face.scale ?? 1)}rem`
               }}
             >
               10:24

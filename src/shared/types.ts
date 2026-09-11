@@ -12,8 +12,15 @@ export type TemperatureUnit = 'celsius' | 'fahrenheit'
 /** 'system' defers to the locale's own convention. */
 export type HourCyclePreference = 'system' | '12' | '24'
 
-/** The typeface the clock is set in. Each is a bundled variable font. */
-export type FontChoice = 'inter' | 'grotesk' | 'fraunces' | 'mono'
+/**
+ * The typeface the clock is set in.
+ *
+ * All four are monospaced. A clock that reflows every second is unusable, and
+ * `font-variant-numeric: tabular-nums` is silently ignored by fonts that do
+ * not ship tabular figures -- `npm run check:fonts` measures this rather than
+ * trusting it.
+ */
+export type FontChoice = 'jetbrains' | 'geist' | 'martian' | 'redhat'
 
 /**
  * What fills the window behind the clock. 'ambient' is the plain CSS wash and
@@ -65,7 +72,16 @@ export interface WindowBounds {
   height: number
 }
 
+/**
+ * Bumped whenever a stored value needs rewriting rather than merely
+ * defaulting. The store migrates old files forward so an upgrade never costs
+ * the user their settings.
+ */
+export const CONFIG_VERSION = 2
+
 export interface AppConfig {
+  /** Schema version of the file this config was read from. */
+  version: number
   location: AppLocation
   /** An IANA zone that wins over detection, or null to follow the system. */
   timezoneOverride: string | null
@@ -127,6 +143,10 @@ export interface WeatherApi {
   geocoding: {
     search(query: string): Promise<GeoResult[]>
   }
+  app: {
+    /** The running build's version, from package.json. */
+    version: string
+  }
   theme: {
     /** Handed over at window creation so the first paint is never wrong. */
     initial: ResolvedTheme
@@ -183,12 +203,13 @@ export const DEFAULT_LOCATION: AppLocation = {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
+  version: CONFIG_VERSION,
   location: DEFAULT_LOCATION,
   timezoneOverride: null,
   theme: 'system',
   temperatureUnit: 'celsius',
   hourCycle: 'system',
-  fontFamily: 'inter',
+  fontFamily: 'jetbrains',
   background: 'mesh',
   palette: 'weather',
   customPalette: { accent: '#e0913f', accentAlt: '#4b7fb5' },

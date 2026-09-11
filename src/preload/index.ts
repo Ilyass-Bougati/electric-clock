@@ -14,6 +14,7 @@ function subscribe<T>(channel: string, listener: (payload: T) => void): () => vo
 }
 
 const THEME_FLAG = '--app-theme='
+const VERSION_FLAG = '--app-version='
 
 /**
  * The main process stamps the resolved theme onto the command line, so the
@@ -24,7 +25,15 @@ function initialTheme(): ResolvedTheme {
   return flag?.slice(THEME_FLAG.length) === 'dark' ? 'dark' : 'light'
 }
 
+function appVersion(): string {
+  const flag = process.argv.find((arg) => arg.startsWith(VERSION_FLAG))
+  return flag?.slice(VERSION_FLAG.length) ?? '0.0.0'
+}
+
 const api: WeatherApi = {
+  app: {
+    version: appVersion()
+  },
   config: {
     get: () => ipcRenderer.invoke(IPC.configGet) as Promise<AppConfig>,
     update: (patch) => ipcRenderer.invoke(IPC.configUpdate, patch) as Promise<AppConfig>,

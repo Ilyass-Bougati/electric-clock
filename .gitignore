@@ -5,3 +5,4 @@ dist/
 *.tsbuildinfo
 .DS_Store
 release/
+.digit-width-probe.html
