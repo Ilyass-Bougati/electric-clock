@@ -5,8 +5,9 @@ name: Release
 #   npm version patch   # bumps package.json and makes the tag
 #   git push --follow-tags
 #
-# A manual run builds and keeps the artifacts without publishing anything,
-# which is the way to check the pipeline without cutting a release.
+# A manual run builds every platform and keeps the artifacts for a week
+# without publishing anything, which is the way to exercise the pipeline
+# without cutting a release.
 on:
   push:
     tags:
@@ -17,9 +18,30 @@ permissions:
   contents: write
 
 jobs:
-  linux:
-    name: Linux (x64)
-    runs-on: ubuntu-latest
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+
+    # bash on both runners, so the shell steps below are written once.
+    defaults:
+      run:
+        shell: bash
+
+    # One platform failing should not hide whether the other one works.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux (x64)
+            platform: linux
+            electron_cache: ~/.cache/electron
+            builder_cache: ~/.cache/electron-builder
+          - os: windows-latest
+            label: Windows (x64)
+            platform: win
+            electron_cache: ~/AppData/Local/electron/Cache
+            builder_cache: ~/AppData/Local/electron-builder/Cache
 
     steps:
       - uses: actions/checkout@v4
@@ -29,23 +51,24 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Electron's binary and electron-builder's toolchain are ~200MB of
-      # downloads that never change between runs of the same version.
+      # Electron's binary and electron-builder's toolchain (NSIS, WiX, fpm,
+      # the AppImage runtime) are hundreds of megabytes that never change
+      # between runs of the same version.
       - name: Restore Electron caches
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/electron
-            ~/.cache/electron-builder
-          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: electron-${{ runner.os }}-
+            ${{ matrix.electron_cache }}
+            ${{ matrix.builder_cache }}
+          key: electron-${{ matrix.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ matrix.os }}-
 
       - name: Install dependencies
         run: npm ci
 
       # A tag that disagrees with package.json produces a release whose
       # artifacts are named after a different version. Catch it before the
-      # twenty-minute build rather than after.
+      # build rather than after.
       - name: Check the tag matches package.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -57,47 +80,83 @@ jobs:
           fi
           echo "releasing ${pkg}"
 
-      # check:fonts opens a real BrowserWindow to measure glyph advances, so
-      # it needs a display even though the window is never shown.
+      # The font check is platform-independent, so it runs once. It opens a
+      # real BrowserWindow to measure glyph advances and so needs a display,
+      # even though the window is never shown.
       - name: Install Xvfb
+        if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       # --no-sandbox because Electron's setuid sandbox is unreliable on CI
       # runners. It only affects this build-time probe, never the shipped app.
       - name: Check the clock cannot reflow
+        if: matrix.platform == 'linux'
         run: xvfb-run -a npm run check:fonts -- --no-sandbox
 
-      # Runs typecheck for both tsconfigs, bundles, then packages.
+      # Typechecks both tsconfigs, bundles, then packages. --publish never so
+      # electron-builder cannot decide to upload anything on its own.
       - name: Build and package
-        run: npm run dist
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.platform }} --publish never
 
       - name: List artifacts
-        run: ls -lh release/*.AppImage release/*.deb
+        run: ls -lh release/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-x64
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
+            release/*.msi
+          retention-days: 7
+          if-no-files-found: error
+
+  # Publishing is its own job so the release is created exactly once. Two
+  # platform jobs racing to create it would leave one of them failing.
+  publish:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Collect every platform's artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       # Published with the gh CLI rather than electron-builder's own
-      # publisher: that one also writes a latest-linux.yml update feed, and
-      # this app deliberately has no auto-updater.
+      # publisher: that one also writes a latest-*.yml update feed, and this
+      # app deliberately has no auto-updater.
       - name: Publish to the GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mapfile -t assets < <(
+            find artifacts -type f \( \
+              -name '*.AppImage' -o -name '*.deb' -o \
+              -name '*.exe' -o -name '*.msi' \) | sort
+          )
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::no installers were produced"
+            exit 1
+          fi
+          printf 'uploading %s\n' "${assets[@]}"
+
           if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" \
               --title "Electric Clock ${GITHUB_REF_NAME#v}" \
               --generate-notes \
               --verify-tag
           fi
-          gh release upload "$GITHUB_REF_NAME" \
-            release/*.AppImage release/*.deb --clobber
 
-      - name: Keep artifacts for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-x64
-          path: |
-            release/*.AppImage
-            release/*.deb
-          retention-days: 7
-          if-no-files-found: error
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber

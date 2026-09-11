@@ -56,4 +56,22 @@ if [ "$(identify -format '%[channels]' "$OUTPUT")" != "srgba" ]; then
   exit 1
 fi
 
+# Windows wants a real multi-size .ico. Generating it here, next to the PNG,
+# means the two can never drift and electron-builder is not left to guess.
+# -type TrueColorAlpha for the same reason as above: without it a
+# near-monochrome source collapses to grayscale and the transparent corners
+# come back opaque.
+ICO="${OUTPUT%.png}.ico"
+convert "$OUTPUT" -colorspace sRGB -alpha on -type TrueColorAlpha -filter point \
+  -define png:color-type=6 \
+  -define icon:auto-resize=256,128,64,48,32,16 "$ICO"
+
+for layer in $(identify -format '%[channels] ' "$ICO"); do
+  if [ "$layer" != "srgba" ]; then
+    echo "error: '$ICO' has a layer without alpha ($layer); corners would render opaque." >&2
+    exit 1
+  fi
+done
+
 echo "wrote $OUTPUT ($(identify -format '%wx%h' "$OUTPUT"), ${RADIUS}px radius)"
+echo "wrote $ICO ($(identify -format '%wx%h ' "$ICO"))"

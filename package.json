@@ -13,10 +13,12 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
-    "dist": "npm run build && electron-builder --linux",
+    "dist": "npm run build && electron-builder",
     "dist:dir": "npm run build && electron-builder --linux --dir",
     "icon": "bash scripts/round-icon.sh",
-    "check:fonts": "electron scripts/check-digit-widths.js"
+    "check:fonts": "electron scripts/check-digit-widths.js",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "@fontsource-variable/geist-mono": "^5.3.0",

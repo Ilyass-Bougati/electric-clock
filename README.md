@@ -12,6 +12,8 @@ Download from the [releases
 page](https://github.com/Ilyass-Bougati/electric-clock/releases), or build it
 yourself (see below).
 
+**Linux**
+
 - **AppImage** — make it executable and run it. Nothing to install.
 
   ```bash
@@ -24,6 +26,16 @@ yourself (see below).
   ```bash
   sudo apt install ./electric-clock_1.0.0_amd64.deb
   ```
+
+**Windows**
+
+- **`-setup-x64.exe`** — the usual installer wizard. Lets you choose where it
+  goes, and adds Start menu and desktop shortcuts.
+- **`-x64.msi`** — same app, for deploying with Group Policy or Intune.
+
+The Windows builds are not code-signed, so SmartScreen will warn the first
+time you run one. Click **More info**, then **Run anyway**. Signing needs a
+paid certificate; there is no way around the warning without one.
 
 ## Using it
 
@@ -57,16 +69,20 @@ npm run dev      # run it with live reload while you poke at it
 To produce the installable files:
 
 ```bash
-npm run dist     # writes an AppImage and a .deb into release/
+npm run dist          # builds for the machine you are on
+npm run dist:linux    # AppImage + .deb
+npm run dist:win      # installer .exe + .msi
 ```
 
-Linux builds work out of the box. A Windows installer needs wine, and a macOS
-build genuinely needs a Mac.
+Whatever you are on builds natively. Making Windows installers *from* Linux
+additionally needs wine, so it is easier to let CI do it — tagging a version
+builds both platforms on their own runners and attaches everything to the
+GitHub release. A macOS build genuinely needs a Mac.
 
 To change the app icon, drop your artwork at `build/icon-source.png` and run:
 
 ```bash
-npm run icon     # rounds the corners and writes build/icon.png
+npm run icon     # rounds the corners, writes build/icon.png and build/icon.ico
 ```
 
 ## Weather data
