@@ -8,13 +8,15 @@ monitor.
 
 ## Install
 
-Grab a build from `release/`, or make one yourself (see below).
+Download from the [releases
+page](https://github.com/Ilyass-Bougati/electric-clock/releases), or build it
+yourself (see below).
 
 - **AppImage** — make it executable and run it. Nothing to install.
 
   ```bash
-  chmod +x "Electric Clock-1.0.0-x86_64.AppImage"
-  ./"Electric Clock-1.0.0-x86_64.AppImage"
+  chmod +x electric-clock-1.0.0-x86_64.AppImage
+  ./electric-clock-1.0.0-x86_64.AppImage
   ```
 
 - **.deb** — installs a launcher entry and icon, removes cleanly.

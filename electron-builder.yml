@@ -36,7 +36,8 @@ linux:
       StartupWMClass: electric-clock
 
 appImage:
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  # No spaces: this name becomes a release asset and gets globbed in CI.
+  artifactName: ${name}-${version}-${arch}.${ext}
 
 deb:
   artifactName: ${name}_${version}_${arch}.${ext}
