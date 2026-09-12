@@ -1,6 +1,6 @@
 {
   "name": "electric-clock",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A desktop clock and weather dashboard",
   "main": "./out/main/index.js",
   "author": "Ilyass Bougati",
