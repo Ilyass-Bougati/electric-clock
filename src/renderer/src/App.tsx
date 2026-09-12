@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ClockMode } from '@shared/types'
 import { describeWeatherCode, toneForIcon } from '@shared/weather-codes'
 import { Background } from './components/Background'
+import { Chrono, ChronoControls } from './components/Chrono'
+import { Timer, TimerControls } from './components/Timer'
 import { Clock } from './components/Clock'
 import { Settings } from './components/Settings'
 import { TitleBar } from './components/TitleBar'
@@ -13,8 +16,24 @@ import {
   useWindowState
 } from './hooks/useAppState'
 import { readShaderPalette, resolveToneOverrides } from './lib/shader-palette'
+import { resetChrono, toggleChrono } from './lib/chrono'
+import {
+  dismissTimer,
+  getTimerStatus,
+  hydrateTimer,
+  popTimerDigit,
+  pushTimerDigit,
+  resetTimer,
+  ringTimer,
+  toggleTimer
+} from './lib/timer'
 import { detectTimeZone, resolveHour12 } from './lib/time'
 import { shortLocation } from './lib/units'
+
+const PLACE_LABEL: Partial<Record<ClockMode, string>> = {
+  chrono: 'Stopwatch',
+  timer: 'Timer'
+}
 
 export default function App(): ReactNode {
   const theme = useTheme()
@@ -28,10 +47,16 @@ export default function App(): ReactNode {
   // Detection happens once per launch; an explicit override wins over it.
   const systemTimeZone = useMemo(() => detectTimeZone(), [])
 
-  const fontFamily = config?.fontFamily ?? 'inter'
+  const fontFamily = config?.fontFamily ?? 'jetbrains'
   useEffect(() => {
     document.documentElement.dataset.font = fontFamily
   }, [fontFamily])
+
+  const onWallpaper = config?.background === 'wallpaper' && config.wallpaper !== null
+  useEffect(() => {
+    if (onWallpaper) document.documentElement.dataset.wallpaper = 'on'
+    else delete document.documentElement.dataset.wallpaper
+  }, [onWallpaper])
 
   // The whole window takes its colour cue from the sky. `data-tone` drives
   // the CSS washes; the shader palette is then read back out of those same
@@ -39,6 +64,14 @@ export default function App(): ReactNode {
   const tone = weather.snapshot
     ? toneForIcon(describeWeatherCode(weather.snapshot.weatherCode).icon)
     : 'cloud'
+
+  // The countdown's firing is the main process's call, not the renderer's.
+  useEffect(() => window.api.timer.subscribeElapsed(ringTimer), [])
+
+  const timerDuration = config?.timerDuration
+  useEffect(() => {
+    if (timerDuration !== undefined) hydrateTimer(timerDuration)
+  }, [timerDuration])
 
   const [palette, setPalette] = useState(readShaderPalette)
   const paletteChoice = config?.palette ?? 'weather'
@@ -65,20 +98,64 @@ export default function App(): ReactNode {
     setPalette(readShaderPalette())
   }, [tone, theme, paletteChoice, customPalette])
 
+  const mode = config?.mode ?? 'clock'
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'F11') {
         event.preventDefault()
         window.api.window.toggleFullScreen()
       }
-      // Settings owns Escape while it is open.
-      if (event.key === 'Escape' && fullScreen && !settingsOpen) {
-        window.api.window.toggleFullScreen()
+      // Settings owns Escape while it is open, and a ringing alarm owns it
+      // before full screen does.
+      if (event.key === 'Escape' && !settingsOpen) {
+        if (mode === 'timer' && getTimerStatus() === 'ringing') {
+          dismissTimer()
+          return
+        }
+        if (fullScreen) window.api.window.toggleFullScreen()
+      }
+
+      // Mode keys, but never while the settings panel is collecting typing --
+      // a space in the city search must stay a space.
+      if (settingsOpen) return
+
+      if (mode === 'chrono') {
+        if (event.key === ' ' || event.code === 'Space') {
+          event.preventDefault()
+          toggleChrono()
+        }
+        if (event.key === 'r' || event.key === 'R') resetChrono()
+        return
+      }
+
+      if (mode === 'timer') {
+        // Anything at all silences an alarm that is going off. Fumbling for
+        // the right key while it rings would be its own small cruelty.
+        if (getTimerStatus() === 'ringing') {
+          event.preventDefault()
+          dismissTimer()
+          return
+        }
+        if (/^[0-9]$/.test(event.key)) {
+          pushTimerDigit(event.key)
+          return
+        }
+        if (event.key === 'Backspace') {
+          popTimerDigit()
+          return
+        }
+        if (event.key === ' ' || event.code === 'Space' || event.key === 'Enter') {
+          event.preventDefault()
+          toggleTimer()
+          return
+        }
+        if (event.key === 'r' || event.key === 'R') resetTimer()
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [fullScreen, settingsOpen])
+  }, [fullScreen, settingsOpen, mode])
 
   if (!config) {
     // A single frame at most, and the window is already painted in the
@@ -91,7 +168,12 @@ export default function App(): ReactNode {
 
   return (
     <div className="relative h-full overflow-hidden">
-      <Background choice={config.background} palette={palette} />
+      <Background
+        choice={config.background}
+        palette={palette}
+        wallpaper={config.wallpaper}
+        dim={config.wallpaperDim}
+      />
 
       {/*
         Three rows, the middle one sized to its content: that puts the clock
@@ -102,21 +184,35 @@ export default function App(): ReactNode {
         <div aria-hidden />
 
         <div className="flex items-center justify-center">
-          <Clock timeZone={timeZone} hour12={hour12} />
+          {mode === 'chrono' ? (
+            <Chrono />
+          ) : mode === 'timer' ? (
+            <Timer />
+          ) : (
+            <Clock timeZone={timeZone} hour12={hour12} />
+          )}
         </div>
 
         <div className="flex items-start justify-center pt-[clamp(2rem,6vh,4.5rem)]">
-          <WeatherStrip
-            state={weather}
-            unit={config.temperatureUnit}
-            timeZone={timeZone}
-            hour12={hour12}
-          />
+          {mode === 'chrono' ? (
+            <ChronoControls />
+          ) : mode === 'timer' ? (
+            <TimerControls />
+          ) : (
+            <WeatherStrip
+              state={weather}
+              unit={config.temperatureUnit}
+              timeZone={timeZone}
+              hour12={hour12}
+            />
+          )}
         </div>
       </main>
 
       <TitleBar
-        place={shortLocation(config.location)}
+        place={PLACE_LABEL[mode] ?? shortLocation(config.location)}
+        mode={mode}
+        onSelectMode={(next) => update({ mode: next })}
         maximized={maximized}
         fullScreen={fullScreen}
         dimmed={chromeIdle && !settingsOpen}

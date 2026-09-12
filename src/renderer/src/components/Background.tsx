@@ -6,7 +6,7 @@ import {
   Swirl,
   Warp
 } from '@paper-design/shaders-react'
-import type { BackgroundChoice } from '@shared/types'
+import { WALLPAPER_SCHEME, type BackgroundChoice, type Wallpaper } from '@shared/types'
 import { shaderColors, type ShaderPalette } from '../lib/shader-palette'
 
 /*
@@ -27,8 +27,21 @@ const MAX_PIXELS = 1_100_000
 
 const FILL = 'absolute inset-0 h-full w-full'
 
+/** The backgrounds that are actually shaders. */
+export type ShaderChoice = Exclude<BackgroundChoice, 'ambient' | 'wallpaper'>
+
+/**
+ * The wallpaper is served by the main process on its own scheme, so the
+ * renderer never sees a filesystem path. The URL is otherwise constant, hence
+ * the timestamp: without it a newly chosen image would be masked by the
+ * previous one still sitting in the cache.
+ */
+export function wallpaperUrl(wallpaper: Wallpaper): string {
+  return `${WALLPAPER_SCHEME}://image/current?v=${wallpaper.updatedAt}`
+}
+
 export interface ShaderFieldProps {
-  choice: Exclude<BackgroundChoice, 'ambient'>
+  choice: ShaderChoice
   palette: ShaderPalette
   /** Tiles in settings render still; only the real background moves. */
   speed?: number
@@ -123,12 +136,33 @@ export function ShaderField({
 interface BackgroundProps {
   choice: BackgroundChoice
   palette: ShaderPalette
+  wallpaper: Wallpaper | null
+  /** 0 = the image untouched, 0.9 = barely a hint of it. */
+  dim: number
 }
 
-export function Background({ choice, palette }: BackgroundProps): ReactNode {
+export function Background({ choice, palette, wallpaper, dim }: BackgroundProps): ReactNode {
+  // Asking for a wallpaper without having one -- cleared, or the file failed
+  // to copy -- falls back to the wash rather than to an empty window.
+  const showWallpaper = choice === 'wallpaper' && wallpaper !== null
+
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      {choice === 'ambient' ? (
+      {showWallpaper ? (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url("${wallpaperUrl(wallpaper)}")` }}
+          />
+          {/*
+            A photograph cannot be trusted to stay out of the clock's way, so
+            the theme's ground colour is laid back over it. How much is the
+            user's call -- no single value suits both a dark landscape and a
+            bright busy one.
+          */}
+          <div className="absolute inset-0" style={{ backgroundColor: 'var(--bg)', opacity: dim }} />
+        </>
+      ) : choice === 'ambient' || choice === 'wallpaper' ? (
         // Two CSS washes driven by data-tone. No GPU, no animation.
         <div className="ambient-wash absolute inset-0" />
       ) : (

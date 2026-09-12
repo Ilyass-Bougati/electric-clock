@@ -9,6 +9,12 @@ import {
   type WindowBounds
 } from '@shared/types'
 import { ConfigStore } from './store'
+import {
+  chooseWallpaper,
+  registerWallpaperScheme,
+  removeWallpaper,
+  serveWallpaper
+} from './wallpaper'
 import { searchCities, WeatherService } from './weather'
 
 /**
@@ -32,6 +38,18 @@ const BACKDROP: Record<ResolvedTheme, string> = {
  * anything touches the path, hence module scope rather than whenReady.
  */
 app.setPath('userData', join(app.getPath('appData'), 'electric-clock'))
+
+// Custom schemes have to be declared before the app is ready; the handler
+// itself is installed further down, once there is a config to read from.
+registerWallpaperScheme()
+
+/**
+ * The countdown's deadline lives here rather than in the renderer. Chromium
+ * throttles a hidden window's timers to roughly once a minute, so a timer
+ * armed in the renderer would ring late by however long the user looked
+ * away. Node's timers carry on regardless.
+ */
+let timerHandle: NodeJS.Timeout | null = null
 
 let mainWindow: BrowserWindow | null = null
 let store: ConfigStore
@@ -109,6 +127,7 @@ function createWindow(): void {
     minHeight: MIN_WINDOW_HEIGHT,
     show: false,
     frame: false,
+    fullscreen: config.windowFullScreen,
     autoHideMenuBar: true,
     backgroundColor: BACKDROP[theme],
     title: 'Electric Clock',
@@ -121,12 +140,29 @@ function createWindow(): void {
     }
   })
 
+  // Maximizing before the first paint avoids showing the restored size and
+  // then snapping. Full screen is handled by the constructor option above,
+  // and takes precedence when both were somehow stored.
+  if (config.windowMaximized && !config.windowFullScreen) mainWindow.maximize()
+
   mainWindow.once('ready-to-show', () => mainWindow?.show())
 
-  mainWindow.on('maximize', () => broadcast(IPC.windowMaximizedChanged, true))
-  mainWindow.on('unmaximize', () => broadcast(IPC.windowMaximizedChanged, false))
-  mainWindow.on('enter-full-screen', () => broadcast(IPC.windowFullScreenChanged, true))
-  mainWindow.on('leave-full-screen', () => broadcast(IPC.windowFullScreenChanged, false))
+  // Remembered like any other preference: a clock left full screen on a spare
+  // monitor should come back full screen. `notify` is off because the
+  // renderer already learns about these through the broadcasts below.
+  const rememberMaximized = (maximized: boolean): void => {
+    broadcast(IPC.windowMaximizedChanged, maximized)
+    applyConfigPatch({ windowMaximized: maximized }, false)
+  }
+  const rememberFullScreen = (fullScreen: boolean): void => {
+    broadcast(IPC.windowFullScreenChanged, fullScreen)
+    applyConfigPatch({ windowFullScreen: fullScreen }, false)
+  }
+
+  mainWindow.on('maximize', () => rememberMaximized(true))
+  mainWindow.on('unmaximize', () => rememberMaximized(false))
+  mainWindow.on('enter-full-screen', () => rememberFullScreen(true))
+  mainWindow.on('leave-full-screen', () => rememberFullScreen(false))
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -149,6 +185,11 @@ function createWindow(): void {
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+function disarmTimer(): void {
+  if (timerHandle) clearTimeout(timerHandle)
+  timerHandle = null
 }
 
 function registerIpc(): void {
@@ -175,6 +216,40 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.themeGet, () => resolvedTheme())
+
+  ipcMain.handle(IPC.wallpaperChoose, async () => {
+    const chosen = await chooseWallpaper(mainWindow)
+    // undefined means cancelled, which must not clear an existing wallpaper.
+    if (chosen === undefined) return store.get()
+    return applyConfigPatch({ wallpaper: chosen, background: 'wallpaper' })
+  })
+
+  ipcMain.handle(IPC.wallpaperClear, () => {
+    return applyConfigPatch({ wallpaper: removeWallpaper() })
+  })
+
+  ipcMain.on(IPC.timerArm, (_event, deadline: unknown) => {
+    disarmTimer()
+    if (typeof deadline !== 'number' || !Number.isFinite(deadline)) return
+
+    timerHandle = setTimeout(
+      () => {
+        timerHandle = null
+        broadcast(IPC.timerElapsed, null)
+        // The window is very likely not the one being looked at -- that is
+        // rather the point of a timer -- so ask for the taskbar's attention.
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
+          mainWindow.flashFrame(true)
+        }
+      },
+      Math.max(0, deadline - Date.now())
+    )
+  })
+
+  ipcMain.on(IPC.timerDisarm, () => {
+    disarmTimer()
+    mainWindow?.flashFrame(false)
+  })
 
   ipcMain.on(IPC.windowMinimize, (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize()
@@ -212,6 +287,8 @@ app.whenReady().then(() => {
     broadcast(IPC.themeChanged, theme)
   })
 
+  serveWallpaper(() => store.get().wallpaper)
+
   weather = new WeatherService(config.location)
   weather.subscribe((state) => broadcast(IPC.weatherChanged, state))
 
@@ -229,6 +306,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  disarmTimer()
   weather?.stop()
   store?.flush()
 })

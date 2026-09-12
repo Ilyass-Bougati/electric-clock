@@ -194,6 +194,15 @@
   --tone-b: rgba(118, 94, 64, 0.3);
 }
 
+/*
+ * Over a wallpaper the quietest text -- the date line, the title strip -- has
+ * to compete with whatever the image is doing behind it. Lifting the faintest
+ * step up to the muted one keeps it legible without touching anything else.
+ */
+:root[data-wallpaper='on'] {
+  --fg-faint: var(--fg-muted);
+}
+
 html,
 body,
 #root {
@@ -358,4 +367,50 @@ input[type='color']::-webkit-color-swatch-wrapper {
 input[type='color']::-webkit-color-swatch {
   border: none;
   border-radius: 9999px;
+}
+
+/* Range inputs, restyled to the app's own surfaces. */
+input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--hover);
+  border-radius: 9999px;
+  outline-offset: 4px;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  box-shadow: var(--edge);
+  cursor: pointer;
+}
+
+/*
+ * The alarm's visual half. A slow breath rather than a flash: something has
+ * to carry the alarm when the sound is muted or the volume is down, without
+ * turning the window into a hazard light.
+ */
+@keyframes ring {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-ring {
+  animation: ring 1.75s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ring {
+    animation: none;
+    opacity: 0.75;
+  }
 }

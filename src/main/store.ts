@@ -4,14 +4,20 @@ import { join } from 'node:path'
 import {
   CONFIG_VERSION,
   DEFAULT_CONFIG,
+  MAX_TIMER_MS,
+  MAX_WALLPAPER_DIM,
+  MIN_TIMER_MS,
+  MIN_WALLPAPER_DIM,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
   type AppConfig,
   type AppLocation,
   type BackgroundChoice,
+  type ClockMode,
   type CustomPalette,
   type FontChoice,
   type PaletteChoice,
+  type Wallpaper,
   type HourCyclePreference,
   type TemperatureUnit,
   type ThemePreference,
@@ -37,6 +43,18 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback
 }
 
 const HEX_COLOUR = /^#[0-9a-f]{6}$/i
+
+/** A bare file name inside the app's own wallpaper directory -- never a path. */
+const WALLPAPER_FILE = /^current\.[a-z0-9]{1,8}$/i
+
+function normalizeWallpaper(raw: unknown): Wallpaper | null {
+  if (!isRecord(raw)) return null
+  if (typeof raw.file !== 'string' || !WALLPAPER_FILE.test(raw.file)) return null
+  const updatedAt = typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)
+    ? raw.updatedAt
+    : 0
+  return { file: raw.file, updatedAt }
+}
 
 /**
  * Faces that existed before the clock went monospace-only. Fraunces had no
@@ -148,8 +166,18 @@ function normalizeConfig(input: unknown): AppConfig {
     ),
     background: oneOf<BackgroundChoice>(
       raw.background,
-      ['ambient', 'mesh', 'warp', 'grain', 'swirl', 'dither'],
+      ['ambient', 'mesh', 'warp', 'grain', 'swirl', 'dither', 'wallpaper'],
       'mesh'
+    ),
+    wallpaper: normalizeWallpaper(raw.wallpaper),
+    wallpaperDim: Math.min(
+      MAX_WALLPAPER_DIM,
+      Math.max(MIN_WALLPAPER_DIM, finite(raw.wallpaperDim, DEFAULT_CONFIG.wallpaperDim))
+    ),
+    mode: oneOf<ClockMode>(raw.mode, ['clock', 'chrono', 'timer'], 'clock'),
+    timerDuration: Math.min(
+      MAX_TIMER_MS,
+      Math.max(MIN_TIMER_MS, Math.round(finite(raw.timerDuration, DEFAULT_CONFIG.timerDuration)))
     ),
     palette: oneOf<PaletteChoice>(
       raw.palette,
@@ -157,7 +185,9 @@ function normalizeConfig(input: unknown): AppConfig {
       'weather'
     ),
     customPalette: normalizeCustomPalette(raw.customPalette),
-    windowBounds: normalizeBounds(raw.windowBounds)
+    windowBounds: normalizeBounds(raw.windowBounds),
+    windowMaximized: raw.windowMaximized === true,
+    windowFullScreen: raw.windowFullScreen === true
   }
 }
 

@@ -144,7 +144,10 @@ export function Settings({
             <BackgroundPicker
               value={config.background}
               palette={palette}
+              wallpaper={config.wallpaper}
+              dim={config.wallpaperDim}
               onChange={(background) => onUpdate({ background })}
+              onDimChange={(wallpaperDim) => onUpdate({ wallpaperDim })}
             />
             <PalettePicker
               value={config.palette}

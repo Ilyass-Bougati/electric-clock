@@ -47,6 +47,15 @@ const api: WeatherApi = {
   geocoding: {
     search: (query) => ipcRenderer.invoke(IPC.geocodingSearch, query) as Promise<GeoResult[]>
   },
+  wallpaper: {
+    choose: () => ipcRenderer.invoke(IPC.wallpaperChoose) as Promise<AppConfig>,
+    clear: () => ipcRenderer.invoke(IPC.wallpaperClear) as Promise<AppConfig>
+  },
+  timer: {
+    arm: (deadline) => ipcRenderer.send(IPC.timerArm, deadline),
+    disarm: () => ipcRenderer.send(IPC.timerDisarm),
+    subscribeElapsed: (listener) => subscribe<null>(IPC.timerElapsed, () => listener())
+  },
   theme: {
     initial: initialTheme(),
     get: () => ipcRenderer.invoke(IPC.themeGet) as Promise<ResolvedTheme>,

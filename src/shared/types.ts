@@ -24,10 +24,45 @@ export type FontChoice = 'jetbrains' | 'geist' | 'martian' | 'redhat'
 
 /**
  * What fills the window behind the clock. 'ambient' is the plain CSS wash and
- * costs nothing; the rest are live WebGL shaders, and all of them take their
- * colours from the current conditions.
+ * costs nothing; 'wallpaper' is an image the user picked; the rest are live
+ * WebGL shaders that take their colours from the current conditions.
  */
-export type BackgroundChoice = 'ambient' | 'mesh' | 'warp' | 'grain' | 'swirl' | 'dither'
+export type BackgroundChoice =
+  | 'ambient'
+  | 'mesh'
+  | 'warp'
+  | 'grain'
+  | 'swirl'
+  | 'dither'
+  | 'wallpaper'
+
+/**
+ * The chosen wallpaper, copied into userData so it survives the original
+ * being moved, renamed or deleted.
+ */
+export interface Wallpaper {
+  /** File name inside userData, not a path -- the directory is main's to know. */
+  file: string
+  /** Doubles as a cache-buster: the served URL is otherwise constant. */
+  updatedAt: number
+}
+
+/**
+ * How much of the theme's ground colour is laid back over the wallpaper.
+ *
+ * This has to be adjustable rather than a fixed value: a dark photograph
+ * needs almost none, while a bright busy one will swallow the date line
+ * whole. 0 shows the image untouched; 0.9 leaves barely a hint of it.
+ */
+export const MIN_WALLPAPER_DIM = 0
+export const MAX_WALLPAPER_DIM = 0.9
+
+/** What the big display shows. */
+export type ClockMode = 'clock' | 'chrono' | 'timer'
+
+/** Remembered between runs so the timer reopens on your usual duration. */
+export const MIN_TIMER_MS = 1000
+export const MAX_TIMER_MS = 24 * 60 * 60 * 1000 - 1000
 
 /**
  * Where the background's two accent colours come from. 'weather' keeps them
@@ -65,6 +100,11 @@ export interface AppLocation {
   timezone: string
 }
 
+/**
+ * The restored geometry only. Whether the window was left maximized or full
+ * screen is tracked separately -- those states have no bounds of their own,
+ * and the size to come back to when un-maximizing is this one.
+ */
 export interface WindowBounds {
   x: number | null
   y: number | null
@@ -90,9 +130,16 @@ export interface AppConfig {
   hourCycle: HourCyclePreference
   fontFamily: FontChoice
   background: BackgroundChoice
+  wallpaper: Wallpaper | null
+  wallpaperDim: number
+  mode: ClockMode
+  /** The countdown's last-used length, in milliseconds. */
+  timerDuration: number
   palette: PaletteChoice
   customPalette: CustomPalette
   windowBounds: WindowBounds
+  windowMaximized: boolean
+  windowFullScreen: boolean
 }
 
 /**
@@ -143,6 +190,29 @@ export interface WeatherApi {
   geocoding: {
     search(query: string): Promise<GeoResult[]>
   }
+  wallpaper: {
+    /**
+     * Opens a native file picker and copies the chosen image into userData.
+     * Resolves with the updated config, unchanged if the user cancelled.
+     */
+    choose(): Promise<AppConfig>
+    clear(): Promise<AppConfig>
+  }
+  timer: {
+    /**
+     * Hands the deadline to the main process, which owns the moment the
+     * countdown fires.
+     *
+     * The renderer cannot be trusted with it: a hidden or minimised window
+     * has its timers throttled to once a minute by Chromium, so a timer set
+     * from the renderer alone would go off late by however long you looked
+     * away. Node's timers in main are not throttled.
+     */
+    arm(deadline: number): void
+    disarm(): void
+    /** Fires once when the countdown reaches zero. */
+    subscribeElapsed(listener: () => void): () => void
+  }
   app: {
     /** The running build's version, from package.json. */
     version: string
@@ -182,8 +252,19 @@ export const IPC = {
   windowIsMaximized: 'window:is-maximized',
   windowMaximizedChanged: 'window:maximized-changed',
   windowIsFullScreen: 'window:is-full-screen',
-  windowFullScreenChanged: 'window:full-screen-changed'
+  windowFullScreenChanged: 'window:full-screen-changed',
+  wallpaperChoose: 'wallpaper:choose',
+  wallpaperClear: 'wallpaper:clear',
+  timerArm: 'timer:arm',
+  timerDisarm: 'timer:disarm',
+  timerElapsed: 'timer:elapsed'
 } as const
+
+/** The scheme the chosen wallpaper is served on. See main/wallpaper.ts. */
+export const WALLPAPER_SCHEME = 'wallpaper'
+
+/** Big enough for any screen, small enough to notice a mistake. */
+export const MAX_WALLPAPER_BYTES = 40 * 1024 * 1024
 
 /**
  * The smallest window where the clock, the date and a single row of weather
@@ -211,7 +292,13 @@ export const DEFAULT_CONFIG: AppConfig = {
   hourCycle: 'system',
   fontFamily: 'jetbrains',
   background: 'mesh',
+  wallpaper: null,
+  wallpaperDim: 0.45,
+  mode: 'clock',
+  timerDuration: 5 * 60 * 1000,
   palette: 'weather',
   customPalette: { accent: '#e0913f', accentAlt: '#4b7fb5' },
-  windowBounds: { x: null, y: null, width: 880, height: 620 }
+  windowBounds: { x: null, y: null, width: 880, height: 620 },
+  windowMaximized: false,
+  windowFullScreen: false
 }

@@ -45,17 +45,33 @@ Everything lives behind the gear icon in the top strip.
   there is no guessing which Springfield you meant.
 - **Time zone** — follows your system by default. Override it with any IANA
   zone, or switch to your chosen city's time.
-- **Background** — a plain wash, or one of five animated shaders. Colours
-  follow the weather, or pick your own.
+- **Background** — a plain wash, one of five animated shaders, or your own
+  image. Shader colours follow the weather, or pick your own. A wallpaper gets
+  a **Dim** slider, because a bright photo will otherwise swallow the date.
 - **Typeface** — four monospaced faces for the clock.
 - **Display** — 12/24-hour, °C/°F, light/dark/system.
+
+The top strip switches between three modes:
+
+- **Clock** — the time and today's weather.
+- **Stopwatch** — Space starts and pauses, `R` resets.
+- **Timer** — pick 1, 5, 10 or 25 minutes, or set any duration by typing:
+  digits fill from the right, so `2`, `5`, `0`, `0` is 25 minutes and
+  `1`, `3`, `0`, `0`, `0`, `0` is 1 hour 30. Backspace corrects, Enter or
+  Space starts, `R` resets.
+
+When a timer finishes it chimes for about a minute, the digits pulse, and the
+taskbar entry flashes if the window is not in front. Any key stops it. Both
+the stopwatch and the timer keep running if you switch back to the clock.
 
 Full screen is the button in the top strip, or `F11`; `Escape` leaves it.
 After a few seconds without mouse movement the window controls fade away, so
 what you are left with is just the clock.
 
-Your settings are remembered, including the window's size and position, and
-survive upgrades.
+Every setting is remembered, including the window's size, position, and
+whether you left it maximised or full screen. They survive upgrades. A running
+stopwatch or timer is not kept across a restart — those are deliberately
+in-the-moment.
 
 ## Building it yourself
 
