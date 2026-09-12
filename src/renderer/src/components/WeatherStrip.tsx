@@ -3,6 +3,7 @@ import type { TemperatureUnit, WeatherState } from '@shared/types'
 import { describeWeatherCode } from '@shared/weather-codes'
 import { formatHumidity, formatTemperature } from '../lib/units'
 import { createShortTimeFormatter } from '../lib/time'
+import { ControlBar } from './Display'
 import { HumidityGlyph, UvGlyph, WeatherGlyph } from './WeatherGlyph'
 
 /**
@@ -12,9 +13,9 @@ import { HumidityGlyph, UvGlyph, WeatherGlyph } from './WeatherGlyph'
  */
 function Pill({ children }: { children: ReactNode }): ReactNode {
   return (
-    <div className="glass display-face flex items-center rounded-full text-body px-[1.45em] py-[0.6em]">
-      {children}
-    </div>
+    <ControlBar>
+      <div className="flex items-center px-[0.95em]">{children}</div>
+    </ControlBar>
   )
 }
 

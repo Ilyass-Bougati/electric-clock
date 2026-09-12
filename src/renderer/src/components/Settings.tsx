@@ -1,12 +1,16 @@
 import { useEffect, type ReactNode } from 'react'
-import { X } from 'lucide-react'
-import type {
-  AppConfig,
-  HourCyclePreference,
-  ResolvedTheme,
-  TemperatureUnit,
-  ThemePreference
+import { Minus, Plus, X } from 'lucide-react'
+import {
+  MAX_ZOOM,
+  MIN_ZOOM,
+  ZOOM_STEP,
+  type AppConfig,
+  type HourCyclePreference,
+  type ResolvedTheme,
+  type TemperatureUnit,
+  type ThemePreference
 } from '@shared/types'
+import { cn } from '../lib/cn'
 import type { ShaderPalette } from '../lib/shader-palette'
 import { BackgroundPicker } from './BackgroundPicker'
 import { PalettePicker } from './PalettePicker'
@@ -44,6 +48,56 @@ function Row({ label, hint, children }: RowProps): ReactNode {
         {hint ? <span className="truncate text-meta text-fg-faint">{hint}</span> : null}
       </div>
       {children}
+    </div>
+  )
+}
+
+interface ZoomStepperProps {
+  value: number
+  onChange: (value: number) => void
+}
+
+/**
+ * A stepper, not a slider. Zoom resizes the very panel this control sits in,
+ * so a slider would slide out from under the pointer as it was dragged and
+ * the value would jump around. Discrete steps leave the button where the
+ * hand found it.
+ */
+function ZoomStepper({ value, onChange }: ZoomStepperProps): ReactNode {
+  // Steps land on multiples of the step size even if the stored value did
+  // not -- a hand-edited config should not knock the whole ladder askew.
+  const step = (direction: -1 | 1): void => {
+    const next = (Math.round(value / ZOOM_STEP) + direction) * ZOOM_STEP
+    onChange(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(next.toFixed(2)))))
+  }
+
+  const button = (direction: -1 | 1, label: string, icon: ReactNode): ReactNode => {
+    const limit = direction === -1 ? MIN_ZOOM : MAX_ZOOM
+    const spent = direction === -1 ? value <= limit : value >= limit
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        disabled={spent}
+        onClick={() => step(direction)}
+        className={cn(
+          'transition-soft grid size-7 place-items-center rounded-full',
+          spent ? 'text-fg-faint opacity-40' : 'text-fg-muted hover:bg-raised hover:text-fg'
+        )}
+      >
+        {icon}
+      </button>
+    )
+  }
+
+  return (
+    <div role="group" aria-label="Zoom" className="inline-flex items-center rounded-full bg-hover p-[3px]">
+      {button(-1, 'Zoom out', <Minus className="size-3.5" strokeWidth={2} />)}
+      <span className="w-12 text-center text-meta font-medium tabular-nums text-fg">
+        {Math.round(value * 100)}%
+      </span>
+      {button(1, 'Zoom in', <Plus className="size-3.5" strokeWidth={2} />)}
     </div>
   )
 }
@@ -106,7 +160,6 @@ export function Settings({
         aria-label="Settings"
         onClick={(event) => event.stopPropagation()}
         className="animate-panel glass-panel transition-soft flex max-h-full w-full max-w-[34rem] flex-col rounded-[1.75rem]"
-        style={{ boxShadow: 'var(--shadow-panel)' }}
       >
         <div className="flex shrink-0 items-center justify-between px-8 pb-2 pt-7">
           <h2 className="text-body font-medium text-fg">Settings</h2>
@@ -198,6 +251,13 @@ export function Settings({
                 value={config.theme}
                 options={THEMES}
                 onChange={(theme) => onUpdate({ theme })}
+              />
+            </Row>
+
+            <Row label="Zoom" hint="Scales the whole window">
+              <ZoomStepper
+                value={config.zoomFactor}
+                onChange={(zoomFactor) => onUpdate({ zoomFactor })}
               />
             </Row>
           </Section>

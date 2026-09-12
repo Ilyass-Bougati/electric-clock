@@ -52,6 +52,12 @@
   --size-meta: clamp(0.8125rem, min(1.15vw, 1.85vh), 1.0625rem);
 
   --ease: cubic-bezier(0.32, 0.08, 0.24, 1);
+  /*
+   * The house easing holds still for its first third, which is right for a
+   * surface settling but wrong for a cross-fade -- it reads as a stall and
+   * then a jump. This one moves immediately and eases out.
+   */
+  --ease-fade: cubic-bezier(0.22, 0.61, 0.36, 1);
   --duration: 240ms;
 
   /* The UI is always set in Inter; only the dashboard changes face. */
@@ -73,9 +79,23 @@
   --accent-fg: #fafafa;
 
   --grain: 0.055;
-  --glass-lift: 1.06;
-  --glass-blur: 26px;
-  --panel-lift: 1.12;
+  /*
+   * Liquid glass, not frost. The blur is light enough to still read what is
+   * behind it; the material announces itself through its edges instead.
+   */
+  --glass-lift: 1.05;
+  --glass-blur: 12px;
+  --glass-saturate: 1.9;
+  --panel-lift: 1.1;
+  --panel-blur: 44px;
+  /* The lit inner edge, where the glass catches light from above. */
+  --glass-rim: rgba(255, 255, 255, 0.95);
+  /* Bounced light along the bottom inner edge -- weaker, and from below. */
+  --glass-bounce: rgba(255, 255, 255, 0.4);
+  /* The cut edge itself: on a pale ground it reads as a shadow, not a shine. */
+  --glass-cut: rgba(15, 18, 24, 0.07);
+  --glass-drop: rgba(16, 18, 23, 0.16);
+  --glass-sheen: rgba(255, 255, 255, 0.5);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.85);
   --shadow-panel: 0 2px 8px rgba(16, 18, 23, 0.06), 0 40px 90px -24px rgba(16, 18, 23, 0.34);
   --scrim: rgba(236, 236, 234, 0.68);
@@ -99,9 +119,16 @@
   --accent-fg: #14171a;
 
   --grain: 0.08;
-  --glass-lift: 1.85;
-  --glass-blur: 26px;
-  --panel-lift: 1.95;
+  --glass-lift: 1.7;
+  --glass-blur: 12px;
+  --glass-saturate: 1.7;
+  --panel-lift: 1.8;
+  --panel-blur: 44px;
+  --glass-rim: rgba(255, 255, 255, 0.26);
+  --glass-bounce: rgba(255, 255, 255, 0.07);
+  --glass-cut: rgba(255, 255, 255, 0.09);
+  --glass-drop: rgba(0, 0, 0, 0.5);
+  --glass-sheen: rgba(255, 255, 255, 0.16);
   --edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   --shadow-panel: 0 2px 10px rgba(0, 0, 0, 0.5), 0 44px 96px -28px rgba(0, 0, 0, 0.85);
   --scrim: rgba(9, 10, 12, 0.74);
@@ -239,25 +266,78 @@ body {
  * blurring and brightening what is behind it -- which is why the ambient
  * washes and the grain exist: blur needs something to act on.
  */
-@utility glass {
+/*
+ * Liquid glass.
+ *
+ * Read from its edges, not its blur: a backdrop that is brightened, a
+ * refractive rim that compresses and saturates what is behind it, a lit
+ * inner edge along the top, a weaker bounce along the bottom, and a drop
+ * shadow to put it above the page. The blur is deliberately light -- frost
+ * hides what is behind it, glass does not.
+ */
+.glass {
   /*
-   * Scattered light, not a fill: blur softens the grain and the washes,
-   * saturate keeps the condition colour from going grey, and brightness is
-   * what actually lifts the shape off the page. On a near-black ground a
-   * small multiplier is invisible, which is why dark mode lifts much harder
-   * than light mode does.
+   * z-index 0 makes this a stacking context so the layers below can sit at
+   * -1 -- behind the content but still in front of the page. Without it the
+   * absolutely positioned layers paint *above* the in-flow text and their
+   * backdrop-filter blurs the readings themselves. Note this cannot be
+   * `isolation: isolate`: that would make it a backdrop root and blank both
+   * layers.
    */
-  /* Unprefixed only. Lightning CSS adds the -webkit- form itself when its
-     targets need it; hand-writing both makes it keep just the prefixed one,
-     which Chromium then ignores. */
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.6) brightness(var(--glass-lift));
+  position: relative;
+  z-index: 0;
+  /*
+   * Everything here falls downward. There is no ring around the shape and
+   * nothing dark along the top: the edge is defined by what the glass does
+   * to the light passing through it, not by a drawn outline.
+   */
+  box-shadow:
+    0 16px 32px -16px var(--glass-drop),
+    0 5px 12px -8px var(--glass-drop),
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 -1px 0 0 var(--glass-bounce);
 }
 
-/* The settings panel is glass too -- one material, used consistently. */
+.glass-core,
+.glass-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.glass-core {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-lift));
+}
+
+/* A highlight running off the top-left, as a curved surface catches light. */
+.glass-sheen {
+  background: linear-gradient(
+    147deg,
+    var(--glass-sheen) 0%,
+    transparent 46%
+  );
+  opacity: 0.5;
+}
+
 @utility glass-panel {
-  /* Heavier than the strip on purpose: a panel of dense text cannot have a
-     recognisable clock face showing through it. */
-  backdrop-filter: blur(64px) saturate(1.35) brightness(var(--panel-lift));
+  /*
+   * The same material, thicker. A panel of dense text cannot have a legible
+   * clock face showing through it, so this one blurs hard. It takes the lit
+   * rim but not the refractive edge: the panel already sits inside the
+   * blurred scrim, which is itself a backdrop root, so a second sampling
+   * layer there would have nothing to work with.
+   */
+  position: relative;
+  backdrop-filter: blur(var(--panel-blur)) saturate(1.4) brightness(var(--panel-lift));
+
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 -1px 0 0 var(--glass-bounce),
+    inset 0 0 0 1px var(--glass-cut);
 }
 
 @utility display-face {
@@ -412,5 +492,48 @@ input[type='range']::-webkit-slider-thumb {
   .animate-ring {
     animation: none;
     opacity: 0.75;
+  }
+}
+
+/*
+ * Switching modes. A short fade with a few pixels of travel -- enough to read
+ * as a deliberate change of subject, not so much that a clock appears to
+ * bounce. The outgoing copy leaves slightly faster than the new one arrives,
+ * which keeps the overlap from muddying.
+ */
+@keyframes mode-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mode-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.mode-entering {
+  animation: mode-in 260ms var(--ease-fade) both;
+}
+
+.mode-leaving {
+  animation: mode-out 190ms var(--ease-fade) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-entering,
+  .mode-leaving {
+    animation: none;
   }
 }

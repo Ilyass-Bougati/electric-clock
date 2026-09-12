@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore, type ReactNode } from 'react'
 import { Pause, Play, RotateCcw } from 'lucide-react'
 import { cn } from '../lib/cn'
+import { ControlBar, DIGITS, DisplayCaption } from './Display'
 import {
   formatChrono,
   getChronoElapsed,
@@ -29,12 +30,10 @@ export function Chrono(): ReactNode {
 
   return (
     <div className="flex flex-col items-center">
-      <span className="display-face text-time font-medium leading-[0.84] tracking-[var(--display-track)] text-fg">
+      <span className={`${DIGITS} text-time text-fg`}>
         {elapsed}
       </span>
-      <p className="display-face mt-[0.35em] text-body font-normal text-fg-faint">
-        {running ? 'Running' : idle ? 'Stopwatch' : 'Paused'}
-      </p>
+      <DisplayCaption>{running ? 'Running' : idle ? 'Stopwatch' : 'Paused'}</DisplayCaption>
     </div>
   )
 }
@@ -54,7 +53,7 @@ function Control({ label, onClick, primary = false, children }: ControlProps): R
       title={label}
       onClick={onClick}
       className={cn(
-        'transition-soft flex items-center gap-[0.5em] rounded-full px-[1.1em] py-[0.45em] text-meta font-medium',
+        'transition-soft flex items-center gap-[0.45em] rounded-full px-[0.95em] py-[0.4em] font-medium',
         primary ? 'bg-accent text-accent-fg' : 'text-fg-muted hover:bg-hover hover:text-fg'
       )}
     >
@@ -70,7 +69,7 @@ export function ChronoControls(): ReactNode {
   const elapsed = useSyncExternalStore(subscribeChrono, getChronoElapsed)
 
   return (
-    <div className="glass display-face flex items-center gap-[0.4em] rounded-full text-body p-[0.35em]">
+    <ControlBar>
       {running ? (
         <Control label="Pause" onClick={pauseChrono} primary>
           <Pause className="size-[1.15em]" strokeWidth={2} aria-hidden />
@@ -88,6 +87,6 @@ export function ChronoControls(): ReactNode {
           aria-hidden
         />
       </Control>
-    </div>
+    </ControlBar>
   )
 }

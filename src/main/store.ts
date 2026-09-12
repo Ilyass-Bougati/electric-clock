@@ -6,10 +6,12 @@ import {
   DEFAULT_CONFIG,
   MAX_TIMER_MS,
   MAX_WALLPAPER_DIM,
+  MAX_ZOOM,
   MIN_TIMER_MS,
   MIN_WALLPAPER_DIM,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
+  MIN_ZOOM,
   type AppConfig,
   type AppLocation,
   type BackgroundChoice,
@@ -128,13 +130,22 @@ function normalizeLocation(raw: unknown): AppLocation {
   }
 }
 
+/*
+ * The window's minimum size scales with the zoom -- at 75% the layout needs
+ * three quarters of the room -- so the floor a remembered size is held to is
+ * the smallest one any zoom can ask for. The window's own minimum, set in
+ * main, takes it from there.
+ */
+const FLOOR_WIDTH = Math.round(MIN_WINDOW_WIDTH * MIN_ZOOM)
+const FLOOR_HEIGHT = Math.round(MIN_WINDOW_HEIGHT * MIN_ZOOM)
+
 function normalizeBounds(raw: unknown): WindowBounds {
   if (!isRecord(raw)) return { ...DEFAULT_CONFIG.windowBounds }
   return {
     x: typeof raw.x === 'number' && Number.isFinite(raw.x) ? Math.round(raw.x) : null,
     y: typeof raw.y === 'number' && Number.isFinite(raw.y) ? Math.round(raw.y) : null,
-    width: Math.max(MIN_WINDOW_WIDTH, Math.round(finite(raw.width, DEFAULT_CONFIG.windowBounds.width))),
-    height: Math.max(MIN_WINDOW_HEIGHT, Math.round(finite(raw.height, DEFAULT_CONFIG.windowBounds.height)))
+    width: Math.max(FLOOR_WIDTH, Math.round(finite(raw.width, DEFAULT_CONFIG.windowBounds.width))),
+    height: Math.max(FLOOR_HEIGHT, Math.round(finite(raw.height, DEFAULT_CONFIG.windowBounds.height)))
   }
 }
 
@@ -163,6 +174,10 @@ function normalizeConfig(input: unknown): AppConfig {
       raw.fontFamily,
       ['jetbrains', 'geist', 'martian', 'redhat'],
       'jetbrains'
+    ),
+    zoomFactor: Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, finite(raw.zoomFactor, DEFAULT_CONFIG.zoomFactor))
     ),
     background: oneOf<BackgroundChoice>(
       raw.background,

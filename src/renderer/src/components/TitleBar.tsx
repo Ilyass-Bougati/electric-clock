@@ -81,7 +81,9 @@ export function TitleBar({
         dimmed ? 'pointer-events-none opacity-0' : 'opacity-100'
       )}
     >
-      <div className="flex min-w-0 items-center gap-2 text-fg-faint">
+      {/* Keyed on the mode so it fades when the mode changes, and stays put
+          when only the city name does. */}
+      <div key={mode} className="mode-entering flex min-w-0 items-center gap-2 text-fg-faint">
         {mode === 'clock' ? (
           <MapPin className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         ) : (

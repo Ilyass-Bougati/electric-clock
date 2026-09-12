@@ -1,4 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from 'react'
+import { DIGITS, DisplayCaption } from './Display'
 import { useClockValue } from '../lib/useClockValue'
 import { createDateFormatter, createTimeFormatter, splitClock } from '../lib/time'
 
@@ -22,7 +23,7 @@ function TimeDisplay({ timeZone, hour12 }: ClockProps): ReactNode {
 
   return (
     <div className="flex items-start justify-center gap-[0.4em]">
-      <span className="display-face text-time font-medium leading-[0.84] tracking-[var(--display-track)] text-fg">
+      <span className={`${DIGITS} text-time text-fg`}>
         {digits}
       </span>
       {meridiem ? (
@@ -44,7 +45,7 @@ function DateLine({ timeZone }: { timeZone: string }): ReactNode {
   const today = useClockValue(read)
 
   return (
-    <p className="display-face mt-[0.35em] text-body font-normal text-fg-faint">{today}</p>
+    <DisplayCaption>{today}</DisplayCaption>
   )
 }
 

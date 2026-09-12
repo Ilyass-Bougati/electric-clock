@@ -86,12 +86,33 @@ function placement(bounds: WindowBounds): { x?: number; y?: number; width: numbe
   return visible ? { x, y, width, height } : { width, height }
 }
 
+/**
+ * Zoom is applied to the webContents rather than by scaling the layout,
+ * so it takes the title bar and the settings panel with it.
+ *
+ * The window's minimum size has to move with it: the layout needs the same
+ * number of its own units at every zoom, and 600x460 of them is 900x690
+ * actual pixels at 150%. Left fixed, the clock would overrun a window that
+ * was only just big enough at 100%.
+ */
+function applyZoom(zoomFactor: number): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.setZoomFactor(zoomFactor)
+  mainWindow.setMinimumSize(
+    Math.round(MIN_WINDOW_WIDTH * zoomFactor),
+    Math.round(MIN_WINDOW_HEIGHT * zoomFactor)
+  )
+}
+
 function applyConfigPatch(patch: Partial<AppConfig>, notify = true): AppConfig {
   const previous = store.get()
   const next = store.update(patch)
 
   if (next.theme !== previous.theme) {
     nativeTheme.themeSource = next.theme
+  }
+  if (next.zoomFactor !== previous.zoomFactor) {
+    applyZoom(next.zoomFactor)
   }
   // The service compares coordinates itself and no-ops when they match.
   weather.setLocation(next.location)
@@ -123,8 +144,8 @@ function createWindow(): void {
 
   mainWindow = new BrowserWindow({
     ...placement(config.windowBounds),
-    minWidth: MIN_WINDOW_WIDTH,
-    minHeight: MIN_WINDOW_HEIGHT,
+    minWidth: Math.round(MIN_WINDOW_WIDTH * config.zoomFactor),
+    minHeight: Math.round(MIN_WINDOW_HEIGHT * config.zoomFactor),
     show: false,
     frame: false,
     fullscreen: config.windowFullScreen,
@@ -146,6 +167,11 @@ function createWindow(): void {
   if (config.windowMaximized && !config.windowFullScreen) mainWindow.maximize()
 
   mainWindow.once('ready-to-show', () => mainWindow?.show())
+
+  // A zoom factor belongs to a loaded document, not to the window: Chromium
+  // resets it on every navigation, and in dev Vite navigates on every
+  // reload. Re-applying per load is what keeps it from quietly reverting.
+  mainWindow.webContents.on('did-finish-load', () => applyZoom(store.get().zoomFactor))
 
   // Remembered like any other preference: a clock left full screen on a spare
   // monitor should come back full screen. `notify` is off because the

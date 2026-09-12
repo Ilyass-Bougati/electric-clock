@@ -49,7 +49,8 @@ Everything lives behind the gear icon in the top strip.
   image. Shader colours follow the weather, or pick your own. A wallpaper gets
   a **Dim** slider, because a bright photo will otherwise swallow the date.
 - **Typeface** — four monospaced faces for the clock.
-- **Display** — 12/24-hour, °C/°F, light/dark/system.
+- **Display** — 12/24-hour, °C/°F, light/dark/system, and a **Zoom**
+  that scales the whole window between 75% and 150%.
 
 The top strip switches between three modes:
 

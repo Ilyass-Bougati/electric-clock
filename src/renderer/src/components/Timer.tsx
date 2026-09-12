@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore, type ReactNode } from 'react'
 import { BellOff, Pause, Play, RotateCcw } from 'lucide-react'
 import { cn } from '../lib/cn'
+import { ControlBar, DIGITS, DisplayCaption } from './Display'
 import {
   clearTimerDraft,
   dismissTimer,
@@ -54,7 +55,8 @@ export function Timer(): ReactNode {
       >
         <span
           className={cn(
-            'display-face transition-soft block font-medium leading-[0.84] tracking-[var(--display-track)]',
+            DIGITS,
+            'transition-soft',
             // A remembered duration is a suggestion until it has been chosen,
             // so it sits at the same weight as the app's other secondary text
             // and only comes up to full contrast once it means something.
@@ -67,6 +69,7 @@ export function Timer(): ReactNode {
           {remaining}
         </span>
       </div>
+      <DisplayCaption />
     </div>
   )
 }
@@ -86,7 +89,7 @@ function Control({ label, onClick, primary = false, children }: ControlProps): R
       title={label}
       onClick={onClick}
       className={cn(
-        'transition-soft flex items-center gap-[0.5em] rounded-full px-[1.1em] py-[0.45em] text-meta font-medium',
+        'transition-soft flex items-center gap-[0.45em] rounded-full px-[0.95em] py-[0.4em] font-medium',
         primary ? 'bg-accent text-accent-fg' : 'text-fg-muted hover:bg-hover hover:text-fg'
       )}
     >
@@ -100,7 +103,7 @@ export function TimerControls(): ReactNode {
   const status = useStatus()
 
   return (
-    <div className="glass display-face flex items-center gap-[0.4em] rounded-full text-body p-[0.35em]">
+    <ControlBar>
       {status === 'ringing' ? (
         <Control label="Stop" onClick={dismissTimer} primary>
           <BellOff className="size-[1.15em]" strokeWidth={2} aria-hidden />
@@ -114,7 +117,7 @@ export function TimerControls(): ReactNode {
                   key={preset.label}
                   type="button"
                   onClick={() => setTimerDuration(preset.minutes * 60 * 1000)}
-                  className="transition-soft rounded-full px-[0.8em] py-[0.45em] text-meta font-medium text-fg-muted hover:bg-hover hover:text-fg"
+                  className="transition-soft rounded-full px-[0.7em] py-[0.4em] font-medium text-fg-muted hover:bg-hover hover:text-fg"
                 >
                   {preset.label}
                 </button>
@@ -139,6 +142,6 @@ export function TimerControls(): ReactNode {
           )}
         </>
       )}
-    </div>
+    </ControlBar>
   )
 }

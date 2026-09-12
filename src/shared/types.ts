@@ -57,6 +57,17 @@ export interface Wallpaper {
 export const MIN_WALLPAPER_DIM = 0
 export const MAX_WALLPAPER_DIM = 0.9
 
+/**
+ * How large the whole window is drawn.
+ *
+ * A real zoom rather than a font-size scale: the title bar, the settings
+ * panel and the clock all grow together, so nothing drifts out of proportion
+ * with the rest. 1 is the design size.
+ */
+export const MIN_ZOOM = 0.75
+export const MAX_ZOOM = 1.5
+export const ZOOM_STEP = 0.05
+
 /** What the big display shows. */
 export type ClockMode = 'clock' | 'chrono' | 'timer'
 
@@ -129,6 +140,8 @@ export interface AppConfig {
   temperatureUnit: TemperatureUnit
   hourCycle: HourCyclePreference
   fontFamily: FontChoice
+  /** Renderer zoom, between MIN_ZOOM and MAX_ZOOM. */
+  zoomFactor: number
   background: BackgroundChoice
   wallpaper: Wallpaper | null
   wallpaperDim: number
@@ -291,6 +304,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   temperatureUnit: 'celsius',
   hourCycle: 'system',
   fontFamily: 'jetbrains',
+  zoomFactor: 1,
   background: 'mesh',
   wallpaper: null,
   wallpaperDim: 0.45,

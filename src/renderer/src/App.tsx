@@ -5,6 +5,8 @@ import { Background } from './components/Background'
 import { Chrono, ChronoControls } from './components/Chrono'
 import { Timer, TimerControls } from './components/Timer'
 import { Clock } from './components/Clock'
+import { Crossfade } from './components/Crossfade'
+import { DevMenu } from './components/DevMenu'
 import { Settings } from './components/Settings'
 import { TitleBar } from './components/TitleBar'
 import { WeatherStrip } from './components/WeatherStrip'
@@ -102,6 +104,14 @@ export default function App(): ReactNode {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      // Anything typed into a field belongs to that field.
+      const target = event.target
+      const typing =
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+
       if (event.key === 'F11') {
         event.preventDefault()
         window.api.window.toggleFullScreen()
@@ -116,9 +126,9 @@ export default function App(): ReactNode {
         if (fullScreen) window.api.window.toggleFullScreen()
       }
 
-      // Mode keys, but never while the settings panel is collecting typing --
-      // a space in the city search must stay a space.
-      if (settingsOpen) return
+      // Mode keys, but never while a field has focus -- a space in the city
+      // search must stay a space.
+      if (settingsOpen || typing) return
 
       if (mode === 'chrono') {
         if (event.key === ' ' || event.code === 'Space') {
@@ -184,28 +194,38 @@ export default function App(): ReactNode {
         <div aria-hidden />
 
         <div className="flex items-center justify-center">
-          {mode === 'chrono' ? (
-            <Chrono />
-          ) : mode === 'timer' ? (
-            <Timer />
-          ) : (
-            <Clock timeZone={timeZone} hour12={hour12} />
-          )}
+          {/* Both halves cross-fade on the same clock, so the readout and the
+              bar beneath it change together rather than in sequence. */}
+          <Crossfade value={mode} leavingClassName="inset-0 flex items-center justify-center">
+            {(shown) =>
+              shown === 'chrono' ? (
+                <Chrono />
+              ) : shown === 'timer' ? (
+                <Timer />
+              ) : (
+                <Clock timeZone={timeZone} hour12={hour12} />
+              )
+            }
+          </Crossfade>
         </div>
 
         <div className="flex items-start justify-center pt-[clamp(2rem,6vh,4.5rem)]">
-          {mode === 'chrono' ? (
-            <ChronoControls />
-          ) : mode === 'timer' ? (
-            <TimerControls />
-          ) : (
-            <WeatherStrip
-              state={weather}
-              unit={config.temperatureUnit}
-              timeZone={timeZone}
-              hour12={hour12}
-            />
-          )}
+          <Crossfade value={mode} leavingClassName="inset-x-0 top-0 flex justify-center">
+            {(shown) =>
+              shown === 'chrono' ? (
+                <ChronoControls />
+              ) : shown === 'timer' ? (
+                <TimerControls />
+              ) : (
+                <WeatherStrip
+                  state={weather}
+                  unit={config.temperatureUnit}
+                  timeZone={timeZone}
+                  hour12={hour12}
+                />
+              )
+            }
+          </Crossfade>
         </div>
       </main>
 
@@ -218,6 +238,10 @@ export default function App(): ReactNode {
         dimmed={chromeIdle && !settingsOpen}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      {/* Vite folds this to false when building, so the dev menu and
+          everything it imports drop out of the shipped bundle. */}
+      {import.meta.env.DEV ? <DevMenu /> : null}
 
       {settingsOpen ? (
         <Settings
