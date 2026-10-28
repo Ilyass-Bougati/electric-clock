@@ -96,6 +96,11 @@ jobs:
       # Typechecks both tsconfigs, bundles, then packages. --publish never so
       # electron-builder cannot decide to upload anything on its own.
       - name: Build and package
+        # Without these the build still succeeds, just with no Google
+        # Calendar section. See "Google Calendar" in the README.
+        env:
+          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
           npm run build
           npx electron-builder --${{ matrix.platform }} --publish never

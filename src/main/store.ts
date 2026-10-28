@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   CONFIG_VERSION,
   DEFAULT_CONFIG,
+  MAX_GOOGLE_CALENDARS,
   MAX_PLAN_EVENTS,
   MAX_PLAN_TITLE,
   MAX_TIMER_MS,
@@ -168,6 +169,15 @@ function normalizePlanning(raw: unknown): PlanEvent[] {
   return events
 }
 
+/** Calendar ids are Google's to define; only their size is held in check here. */
+function normalizeGoogleCalendars(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null
+  const ids = raw.filter(
+    (id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 256
+  )
+  return [...new Set(ids)].slice(0, MAX_GOOGLE_CALENDARS)
+}
+
 /** A zone string is only accepted if the platform's ICU actually knows it. */
 function isValidTimeZone(zone: string): boolean {
   try {
@@ -263,6 +273,7 @@ function normalizeConfig(input: unknown): AppConfig {
       Math.max(MIN_TIMER_MS, Math.round(finite(raw.timerDuration, DEFAULT_CONFIG.timerDuration)))
     ),
     planning: normalizePlanning(raw.planning),
+    googleCalendars: normalizeGoogleCalendars(raw.googleCalendars),
     palette: oneOf<PaletteChoice>(
       raw.palette,
       ['weather', 'ember', 'tide', 'custom'],

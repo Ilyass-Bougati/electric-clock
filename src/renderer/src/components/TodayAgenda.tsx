@@ -1,7 +1,8 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { PlanEvent } from '@shared/types'
+import type { AllDayExternalEvent } from '@shared/types'
 import { cn } from '../lib/cn'
 import {
+  allDayOn,
   createPlanTimeFormatter,
   createWallClockFormatter,
   eventsOn,
@@ -9,12 +10,16 @@ import {
   parseWallClock,
   phaseAt,
   planColorVar,
-  readWallClock
+  readWallClock,
+  type ShownEvent
 } from '../lib/planning'
 import { useClockValue } from '../lib/useClockValue'
 
 interface TodayAgendaProps {
-  events: readonly PlanEvent[]
+  /** Local entries and Google's timed events, already in the clock's zone. */
+  events: readonly ShownEvent[]
+  /** Google's all-day events, which sit above the timed ones all day long. */
+  allDay: readonly AllDayExternalEvent[]
   timeZone: string
   hour12: boolean
   onOpen: () => void
@@ -29,7 +34,13 @@ interface TodayAgendaProps {
  * when the window is short, the rows that do not fit are left out and
  * counted in the header instead of pushing the clock out of place.
  */
-export function TodayAgenda({ events, timeZone, hour12, onOpen }: TodayAgendaProps): ReactNode {
+export function TodayAgenda({
+  events,
+  allDay,
+  timeZone,
+  hour12,
+  onOpen
+}: TodayAgendaProps): ReactNode {
   const wallClock = useMemo(() => createWallClockFormatter(timeZone), [timeZone])
   const read = useCallback((at: number) => readWallClock(wallClock, at), [wallClock])
   const { day, minute } = parseWallClock(useClockValue(read))
@@ -38,6 +49,8 @@ export function TodayAgenda({ events, timeZone, hour12, onOpen }: TodayAgendaPro
   const today = useMemo(() => eventsOn(events, day), [events, day])
   const ahead = today.filter((event) => phaseAt(event, minute) !== 'done')
   const done = today.length - ahead.length
+  const allDayToday = useMemo(() => allDayOn(allDay, day), [allDay, day])
+  const rows = allDayToday.length + ahead.length
 
   const list = useRef<HTMLOListElement>(null)
   const [fitting, setFitting] = useState(Number.POSITIVE_INFINITY)
@@ -61,9 +74,9 @@ export function TodayAgenda({ events, timeZone, hour12, onOpen }: TodayAgendaPro
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [ahead.length])
+  }, [rows])
 
-  const hidden = Math.max(0, ahead.length - fitting)
+  const hidden = Math.max(0, rows - fitting)
   const summary = [done > 0 ? `${done} done` : null, hidden > 0 ? `+${hidden} later` : null]
     .filter(Boolean)
     .join(' · ')
@@ -78,7 +91,7 @@ export function TodayAgenda({ events, timeZone, hour12, onOpen }: TodayAgendaPro
         {summary ? <span className="text-meta text-fg-faint">{summary}</span> : null}
       </div>
 
-      {ahead.length === 0 ? (
+      {rows === 0 ? (
         <button
           type="button"
           onClick={onOpen}
@@ -91,8 +104,30 @@ export function TodayAgenda({ events, timeZone, hour12, onOpen }: TodayAgendaPro
           ref={list}
           className="relative flex min-h-0 flex-col gap-[0.3em] overflow-hidden px-[0.2em] leading-tight"
         >
-          {ahead.map((event, index) => {
+          {allDayToday.map((event, index) => (
+            <li
+              key={event.id}
+              className={cn('flex shrink-0 items-center gap-[0.7em]', index >= fitting && 'invisible')}
+            >
+              <span
+                aria-hidden
+                className="size-[0.42em] shrink-0 rounded-full"
+                style={{ backgroundColor: planColorVar(event.color) }}
+              />
+              <span
+                className={cn(
+                  'display-face shrink-0 text-fg-faint',
+                  hour12 ? 'min-w-[17ch]' : 'min-w-[11ch]'
+                )}
+              >
+                All day
+              </span>
+              <span className="min-w-0 truncate font-medium text-fg-muted">{event.title}</span>
+            </li>
+          ))}
+          {ahead.map((event, order) => {
             const now = phaseAt(event, minute) === 'now'
+            const index = allDayToday.length + order
             return (
               <li
                 key={event.id}

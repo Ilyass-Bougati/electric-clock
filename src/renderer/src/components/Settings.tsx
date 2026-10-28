@@ -5,6 +5,7 @@ import {
   MIN_ZOOM,
   ZOOM_STEP,
   type AppConfig,
+  type CalendarState,
   type HourCyclePreference,
   type ResolvedTheme,
   type TemperatureUnit,
@@ -15,6 +16,7 @@ import type { ShaderPalette } from '../lib/shader-palette'
 import { BackgroundPicker } from './BackgroundPicker'
 import { PalettePicker } from './PalettePicker'
 import { FontPicker } from './FontPicker'
+import { GoogleCalendarSection } from './GoogleCalendarSection'
 import { localeUsesHour12 } from '../lib/time'
 import { LocationSection } from './LocationSection'
 import { Segmented } from './Segmented'
@@ -121,6 +123,7 @@ const UNITS = [
 
 interface SettingsProps {
   config: AppConfig
+  calendar: CalendarState
   systemTimeZone: string
   /** The live palette, so each preview shows today's actual colours. */
   palette: ShaderPalette
@@ -131,6 +134,7 @@ interface SettingsProps {
 
 export function Settings({
   config,
+  calendar,
   systemTimeZone,
   palette,
   theme,
@@ -192,6 +196,17 @@ export function Settings({
               onChange={(timezoneOverride) => onUpdate({ timezoneOverride })}
             />
           </Section>
+
+          {/* A build made without a Google client ID has nothing to connect to. */}
+          {calendar.status === 'unavailable' ? null : (
+            <Section title="Google Calendar">
+              <GoogleCalendarSection
+                state={calendar}
+                selection={config.googleCalendars}
+                onSelectionChange={(googleCalendars) => onUpdate({ googleCalendars })}
+              />
+            </Section>
+          )}
 
           <Section title="Background">
             <BackgroundPicker

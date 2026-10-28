@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { join } from 'node:path'
 import {
   IPC,
@@ -8,6 +8,8 @@ import {
   type ResolvedTheme,
   type WindowBounds
 } from '@shared/types'
+import { CalendarService } from './calendar'
+import { GoogleAuth, googleAuthAvailable } from './google-auth'
 import { ConfigStore } from './store'
 import {
   chooseWallpaper,
@@ -54,6 +56,7 @@ let timerHandle: NodeJS.Timeout | null = null
 let mainWindow: BrowserWindow | null = null
 let store: ConfigStore
 let weather: WeatherService
+let calendar: CalendarService
 
 function resolvedTheme(): ResolvedTheme {
   return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
@@ -116,6 +119,7 @@ function applyConfigPatch(patch: Partial<AppConfig>, notify = true): AppConfig {
   }
   // The service compares coordinates itself and no-ops when they match.
   weather.setLocation(next.location)
+  calendar.setSelection(next.googleCalendars)
   if (notify) {
     broadcast(IPC.configChanged, next)
   }
@@ -213,6 +217,22 @@ function createWindow(): void {
   }
 }
 
+/**
+ * Event links come from Google, but they reach here by way of the renderer,
+ * which is not trusted to open arbitrary URLs -- only Google Calendar pages.
+ */
+const CALENDAR_HOSTS = new Set(['www.google.com', 'calendar.google.com'])
+
+function isCalendarLink(link: unknown): link is string {
+  if (typeof link !== 'string') return false
+  try {
+    const url = new URL(link)
+    return url.protocol === 'https:' && CALENDAR_HOSTS.has(url.hostname)
+  } catch {
+    return false
+  }
+}
+
 function disarmTimer(): void {
   if (timerHandle) clearTimeout(timerHandle)
   timerHandle = null
@@ -252,6 +272,23 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.wallpaperClear, () => {
     return applyConfigPatch({ wallpaper: removeWallpaper() })
+  })
+
+  ipcMain.handle(IPC.calendarGet, () => calendar.getState())
+  ipcMain.handle(IPC.calendarConnect, async () => {
+    const state = await calendar.connect()
+    // Sign-in finished in the browser; bring the clock back in front of it.
+    if (calendar.connected && mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+    return state
+  })
+  ipcMain.on(IPC.calendarCancelConnect, () => calendar.cancelConnect())
+  ipcMain.handle(IPC.calendarDisconnect, () => calendar.disconnect())
+  ipcMain.handle(IPC.calendarRefresh, () => calendar.refresh())
+  ipcMain.on(IPC.calendarOpenEvent, (_event, link: unknown) => {
+    if (isCalendarLink(link)) void shell.openExternal(link)
   })
 
   ipcMain.on(IPC.timerArm, (_event, deadline: unknown) => {
@@ -318,9 +355,13 @@ app.whenReady().then(() => {
   weather = new WeatherService(config.location)
   weather.subscribe((state) => broadcast(IPC.weatherChanged, state))
 
+  calendar = new CalendarService(googleAuthAvailable ? new GoogleAuth() : null, config.googleCalendars)
+  calendar.subscribe((state) => broadcast(IPC.calendarChanged, state))
+
   registerIpc()
   createWindow()
   weather.start()
+  calendar.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -334,5 +375,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   disarmTimer()
   weather?.stop()
+  calendar?.stop()
   store?.flush()
 })

@@ -1,4 +1,10 @@
-import type { PlanColor, PlanEvent, PlanRepeat } from '@shared/types'
+import type {
+  AllDayExternalEvent,
+  ExternalEvent,
+  PlanColor,
+  PlanEvent,
+  PlanRepeat
+} from '@shared/types'
 import { createShortTimeFormatter } from './time'
 
 /**
@@ -79,7 +85,7 @@ export function occursOn(event: PlanEvent, day: string): boolean {
   return toCalendar(day).getUTCDay() === toCalendar(event.date).getUTCDay()
 }
 
-export function eventsOn(events: readonly PlanEvent[], day: string): PlanEvent[] {
+export function eventsOn<T extends PlanEvent>(events: readonly T[], day: string): T[] {
   return events
     .filter((event) => occursOn(event, day))
     .sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title))
@@ -105,7 +111,7 @@ export function phaseAt(event: PlanEvent, minute: number): PlanPhase {
 }
 
 export interface PlacedEvent {
-  event: PlanEvent
+  event: ShownEvent
   start: number
   end: number
   /** Which of the side-by-side columns this entry takes... */
@@ -119,7 +125,7 @@ export interface PlacedEvent {
  * overlap share the width side by side, and each group of overlaps is
  * split only as many ways as it actually needs.
  */
-export function layoutDay(events: readonly PlanEvent[]): PlacedEvent[] {
+export function layoutDay(events: readonly ShownEvent[]): PlacedEvent[] {
   const items = events
     .map((event) => ({ event, start: toMinutes(event.start), end: endMinute(event) }))
     .sort((a, b) => a.start - b.start || b.end - a.end)
@@ -193,4 +199,75 @@ export const REPEAT_LABEL: Record<PlanRepeat, string> = {
   none: 'Once',
   daily: 'Every day',
   weekly: 'Every week'
+}
+
+/**
+ * An entry as the timetable and agenda show it. Google events are folded
+ * into the same shape so the layout code never has to tell them apart --
+ * only clicking one does.
+ */
+export type ShownEvent = PlanEvent & { source?: 'google'; link?: string | null }
+
+function minutesToTime(minutes: number): string {
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`
+}
+
+/** Plenty for a multi-day conference, and a ceiling on a malformed one. */
+const MAX_SEGMENT_DAYS = 31
+
+/**
+ * Google's events pinned to real instants, read in the zone the clock is
+ * showing. One that runs past midnight is cut into a piece per day, the
+ * first ending at `24:00` -- which `toMinutes` reads as 1440, the very end
+ * of the day.
+ */
+export function toWallClockEvents(
+  events: readonly ExternalEvent[],
+  timeZone: string
+): { timed: ShownEvent[]; allDay: AllDayExternalEvent[] } {
+  const formatter = createWallClockFormatter(timeZone)
+  const timed: ShownEvent[] = []
+  const allDay: AllDayExternalEvent[] = []
+
+  for (const event of events) {
+    if (event.allDay) {
+      allDay.push(event)
+      continue
+    }
+
+    const from = parseWallClock(readWallClock(formatter, event.start))
+    const to = parseWallClock(readWallClock(formatter, event.end))
+    let day = from.day
+    for (let index = 0; index < MAX_SEGMENT_DAYS && day <= to.day; index += 1) {
+      const start = day === from.day ? from.minute : 0
+      const end = day === to.day ? to.minute : 24 * 60
+      // An event ending exactly at midnight has nothing left on the next day.
+      if (day !== from.day && end === 0) break
+      timed.push({
+        id: `${event.id}@${day}`,
+        title: event.title,
+        date: day,
+        start: minutesToTime(start),
+        end: end > start ? minutesToTime(end) : null,
+        repeat: 'none',
+        color: event.color,
+        source: 'google',
+        link: event.link
+      })
+      day = shiftDay(day, 1)
+    }
+  }
+
+  return { timed, allDay }
+}
+
+/** All-day events covering `day`. Their end date is exclusive, as Google sends it. */
+export function allDayOn(
+  events: readonly AllDayExternalEvent[],
+  day: string
+): AllDayExternalEvent[] {
+  return events
+    .filter((event) => event.startDate <= day && day < event.endDate)
+    .sort((a, b) => a.title.localeCompare(b.title))
 }

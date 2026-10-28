@@ -119,6 +119,79 @@ export interface PlanEvent {
 export const MAX_PLAN_EVENTS = 500
 export const MAX_PLAN_TITLE = 120
 
+/** One of the Google calendars the connected account can read. */
+export interface GoogleCalendarInfo {
+  id: string
+  name: string
+  /** Google's own colour for it, snapped to the nearest planning colour. */
+  color: PlanColor
+  primary: boolean
+  /** Whether it is ticked in Google's own sidebar -- the default selection. */
+  selectedInGoogle: boolean
+}
+
+interface ExternalEventBase {
+  id: string
+  calendarId: string
+  title: string
+  color: PlanColor
+  /** The event's page in Google Calendar, if Google gave one. */
+  link: string | null
+}
+
+/**
+ * An event read from Google. Unlike a PlanEvent it is pinned to real instants:
+ * a 09:00 meeting in Paris is 08:00 in Casablanca, so the renderer converts it
+ * into whichever zone the clock is showing.
+ */
+export interface TimedExternalEvent extends ExternalEventBase {
+  allDay: false
+  /** Epoch ms. */
+  start: number
+  /** Epoch ms, after `start`. */
+  end: number
+}
+
+/** All-day events are wall dates by definition and are never zone-shifted. */
+export interface AllDayExternalEvent extends ExternalEventBase {
+  allDay: true
+  /** `YYYY-MM-DD`. */
+  startDate: string
+  /** `YYYY-MM-DD`, exclusive -- as Google sends it. */
+  endDate: string
+}
+
+export type ExternalEvent = TimedExternalEvent | AllDayExternalEvent
+
+export type CalendarStatus =
+  /** This build was made without a Google client ID. */
+  | 'unavailable'
+  /** Never connected, signed out, or access revoked -- `error` says which. */
+  | 'disconnected'
+  /** Waiting for the user to finish signing in, in their browser. */
+  | 'connecting'
+  /** Connected, first sync still in flight. */
+  | 'loading'
+  | 'ok'
+  /** The last sync failed; `events` are from the previous good one. */
+  | 'stale'
+  /** Connected, but the first sync failed and there is nothing to show. */
+  | 'error'
+
+export interface CalendarState {
+  status: CalendarStatus
+  /** The connected account's address, once known. */
+  account: string | null
+  calendars: GoogleCalendarInfo[]
+  events: ExternalEvent[]
+  /** Epoch ms of the last successful sync. */
+  fetchedAt: number | null
+  error: string | null
+}
+
+/** More than enough for any real selection, small enough to notice a mistake. */
+export const MAX_GOOGLE_CALENDARS = 50
+
 /**
  * Where the background's two accent colours come from. 'weather' keeps them
  * tied to the current conditions; the rest are fixed. The ground colour is
@@ -193,6 +266,11 @@ export interface AppConfig {
   /** The countdown's last-used length, in milliseconds. */
   timerDuration: number
   planning: PlanEvent[]
+  /**
+   * The Google calendars to show, by id. null until the user picks: until
+   * then, whichever ones they have ticked in Google itself.
+   */
+  googleCalendars: string[] | null
   palette: PaletteChoice
   customPalette: CustomPalette
   windowBounds: WindowBounds
@@ -271,6 +349,20 @@ export interface WeatherApi {
     /** Fires once when the countdown reaches zero. */
     subscribeElapsed(listener: () => void): () => void
   }
+  calendar: {
+    get(): Promise<CalendarState>
+    /**
+     * Opens Google's sign-in in the system browser and resolves once the
+     * user has finished there, cancelled, or given up.
+     */
+    connect(): Promise<CalendarState>
+    cancelConnect(): void
+    disconnect(): Promise<CalendarState>
+    refresh(): Promise<CalendarState>
+    /** Opens an event's Google Calendar page in the system browser. */
+    openEvent(link: string): void
+    subscribe(listener: (state: CalendarState) => void): () => void
+  }
   app: {
     /** The running build's version, from package.json. */
     version: string
@@ -315,7 +407,14 @@ export const IPC = {
   wallpaperClear: 'wallpaper:clear',
   timerArm: 'timer:arm',
   timerDisarm: 'timer:disarm',
-  timerElapsed: 'timer:elapsed'
+  timerElapsed: 'timer:elapsed',
+  calendarGet: 'calendar:get',
+  calendarConnect: 'calendar:connect',
+  calendarCancelConnect: 'calendar:cancel-connect',
+  calendarDisconnect: 'calendar:disconnect',
+  calendarRefresh: 'calendar:refresh',
+  calendarOpenEvent: 'calendar:open-event',
+  calendarChanged: 'calendar:changed'
 } as const
 
 /** The scheme the chosen wallpaper is served on. See main/wallpaper.ts. */
@@ -356,6 +455,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   mode: 'clock',
   timerDuration: 5 * 60 * 1000,
   planning: [],
+  googleCalendars: null,
   palette: 'weather',
   customPalette: { accent: '#e0913f', accentAlt: '#4b7fb5' },
   windowBounds: { x: null, y: null, width: 880, height: 620 },

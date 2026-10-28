@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type AppConfig, type GeoResult, type ResolvedTheme, type WeatherApi, type WeatherState } from '@shared/types'
+import {
+  IPC,
+  type AppConfig,
+  type CalendarState,
+  type GeoResult,
+  type ResolvedTheme,
+  type WeatherApi,
+  type WeatherState
+} from '@shared/types'
 
 /**
  * Wraps an ipcRenderer listener so the renderer never touches the event
@@ -50,6 +58,15 @@ const api: WeatherApi = {
   wallpaper: {
     choose: () => ipcRenderer.invoke(IPC.wallpaperChoose) as Promise<AppConfig>,
     clear: () => ipcRenderer.invoke(IPC.wallpaperClear) as Promise<AppConfig>
+  },
+  calendar: {
+    get: () => ipcRenderer.invoke(IPC.calendarGet) as Promise<CalendarState>,
+    connect: () => ipcRenderer.invoke(IPC.calendarConnect) as Promise<CalendarState>,
+    cancelConnect: () => ipcRenderer.send(IPC.calendarCancelConnect),
+    disconnect: () => ipcRenderer.invoke(IPC.calendarDisconnect) as Promise<CalendarState>,
+    refresh: () => ipcRenderer.invoke(IPC.calendarRefresh) as Promise<CalendarState>,
+    openEvent: (link) => ipcRenderer.send(IPC.calendarOpenEvent, link),
+    subscribe: (listener) => subscribe<CalendarState>(IPC.calendarChanged, listener)
   },
   timer: {
     arm: (deadline) => ipcRenderer.send(IPC.timerArm, deadline),

@@ -51,6 +51,12 @@ Everything lives behind the gear icon in the top strip.
 - **Typeface** — four monospaced faces for the clock.
 - **Display** — 12/24-hour, °C/°F, light/dark/system, and a **Zoom**
   that scales the whole window between 75% and 150%.
+- **Google Calendar** — **Connect** signs you in through your browser, then
+  your Google events show up in the planning and under today's weather,
+  beside your own entries. Pick which calendars to show. It is read-only:
+  clicking a Google event opens it in Google Calendar to edit, and nothing
+  you add in the clock is ever sent to Google. Events from four weeks back to
+  sixteen weeks ahead are kept, refreshed every ten minutes.
 
 The top strip switches between three modes:
 
@@ -96,6 +102,31 @@ additionally needs wine, so it is easier to let CI do it — tagging a version
 builds both platforms on their own runners and attaches everything to the
 GitHub release. A macOS build genuinely needs a Mac.
 
+### Google Calendar
+
+A build only offers Google Calendar if it was made with an OAuth client ID;
+without one the section is simply absent. To make your own:
+
+1. In the [Google Cloud console](https://console.cloud.google.com), create a
+   project and enable the **Google Calendar API**.
+2. Under **OAuth consent screen**, choose *External*, fill in the app name
+   and your address, and add the
+   `https://www.googleapis.com/auth/calendar.readonly` scope. While the app
+   is in *Testing*, add every Google account that will use it under
+   **Test users**.
+3. Under **Credentials**, create an **OAuth client ID** of type
+   **Desktop app**.
+4. Copy `.env.example` to `.env` and paste in the client ID and secret.
+
+The secret of a desktop client is not actually secret — Google says as much,
+since anything inside an installer can be read out — so it is fine to bake
+in. For release builds, set the same two values as the `GOOGLE_CLIENT_ID`
+and `GOOGLE_CLIENT_SECRET` repository secrets.
+
+Until Google verifies the app, sign-in shows an "unverified app" warning
+(click **Advanced**, then **Go to Electric Clock**), and only the listed test
+users can connect, up to 100 of them.
+
 To change the app icon, drop your artwork at `build/icon-source.png` and run:
 
 ```bash
@@ -108,6 +139,12 @@ Weather and city search come from [Open-Meteo](https://open-meteo.com), which
 is free and needs no API key or account. Readings refresh every 15 minutes. If
 the network drops, the last reading stays on screen with a quiet
 `Last updated HH:MM` next to it — click that to retry immediately.
+
+If you connect Google Calendar, the clock talks to Google directly — there is
+no server of ours in between — and asks only for read access. The sign-in is
+kept in your OS keychain where there is one (on Linux without a keyring, in
+a file only your user can read). **Disconnect** revokes it with Google and
+deletes it.
 
 Nothing else leaves your machine, and there is no account, telemetry or
 tracking of any kind.

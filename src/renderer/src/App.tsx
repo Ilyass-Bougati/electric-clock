@@ -13,6 +13,7 @@ import { TitleBar } from './components/TitleBar'
 import { TodayAgenda } from './components/TodayAgenda'
 import { WeatherStrip } from './components/WeatherStrip'
 import {
+  useCalendar,
   useConfig,
   useIdleChrome,
   useTheme,
@@ -31,6 +32,7 @@ import {
   ringTimer,
   toggleTimer
 } from './lib/timer'
+import { toWallClockEvents } from './lib/planning'
 import { detectTimeZone, resolveHour12 } from './lib/time'
 import { shortLocation } from './lib/units'
 
@@ -44,6 +46,7 @@ export default function App(): ReactNode {
 
   const { config, update } = useConfig()
   const weather = useWeather()
+  const calendar = useCalendar()
   const { maximized, fullScreen } = useWindowState()
   const chromeIdle = useIdleChrome(fullScreen)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -53,6 +56,16 @@ export default function App(): ReactNode {
 
   // Detection happens once per launch; an explicit override wins over it.
   const systemTimeZone = useMemo(() => detectTimeZone(), [])
+  const timeZone = config?.timezoneOverride ?? systemTimeZone
+
+  // Google's events are real instants; read here in the zone the clock shows,
+  // so they move with a zone override while local entries stay put.
+  const google = useMemo(
+    () => toWallClockEvents(calendar.events, timeZone),
+    [calendar.events, timeZone]
+  )
+  const planning = config?.planning
+  const today = useMemo(() => [...(planning ?? []), ...google.timed], [planning, google])
 
   const fontFamily = config?.fontFamily ?? 'jetbrains'
   useEffect(() => {
@@ -178,7 +191,6 @@ export default function App(): ReactNode {
     return <div className="drag h-full" />
   }
 
-  const timeZone = config.timezoneOverride ?? systemTimeZone
   const hour12 = resolveHour12(config.hourCycle)
 
   return (
@@ -249,7 +261,8 @@ export default function App(): ReactNode {
             {(shown) =>
               shown === 'clock' ? (
                 <TodayAgenda
-                  events={config.planning}
+                  events={today}
+                  allDay={google.allDay}
                   timeZone={timeZone}
                   hour12={hour12}
                   onOpen={() => setPlanningOpen(true)}
@@ -278,6 +291,9 @@ export default function App(): ReactNode {
       {planningOpen ? (
         <Planning
           events={config.planning}
+          external={google.timed}
+          allDay={google.allDay}
+          calendar={calendar}
           timeZone={timeZone}
           hour12={hour12}
           onChange={(planning) => update({ planning })}
@@ -288,6 +304,7 @@ export default function App(): ReactNode {
       {settingsOpen ? (
         <Settings
           config={config}
+          calendar={calendar}
           systemTimeZone={systemTimeZone}
           palette={palette}
           theme={theme}

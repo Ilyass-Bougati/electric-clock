@@ -1,42 +1,18 @@
 import type { AppLocation, GeoResult, WeatherSnapshot, WeatherState } from '@shared/types'
+import { describeError, getJson, isRecord } from './http'
 
 const FORECAST_ENDPOINT = 'https://api.open-meteo.com/v1/forecast'
 const GEOCODING_ENDPOINT = 'https://geocoding-api.open-meteo.com/v1/search'
 
 const POLL_INTERVAL_MS = 15 * 60 * 1000
-const REQUEST_TIMEOUT_MS = 12_000
 
 type Listener = (state: WeatherState) => void
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 function requireNumber(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new Error(`Malformed response: missing ${field}`)
   }
   return value
-}
-
-/** Turns transport failures into something short enough for the UI. */
-function describeError(error: unknown): string {
-  if (error instanceof DOMException && error.name === 'TimeoutError') return 'Request timed out'
-  if (error instanceof Error) {
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') return 'Request timed out'
-    if (error.name === 'TypeError') return 'Network unavailable'
-    return error.message
-  }
-  return 'Unknown error'
-}
-
-async function getJson(url: string): Promise<unknown> {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    headers: { accept: 'application/json' }
-  })
-  if (!response.ok) throw new Error(`Request failed (${response.status})`)
-  return (await response.json()) as unknown
 }
 
 async function fetchForecast(location: AppLocation): Promise<WeatherSnapshot> {

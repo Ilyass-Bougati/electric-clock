@@ -9,17 +9,30 @@ import {
   type MouseEvent,
   type ReactNode
 } from 'react'
-import { Check, ChevronLeft, ChevronRight, Plus, Repeat, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  RefreshCw,
+  Repeat,
+  Trash2,
+  X
+} from 'lucide-react'
 import {
   MAX_PLAN_EVENTS,
   MAX_PLAN_TITLE,
   PLAN_COLORS,
+  type AllDayExternalEvent,
+  type CalendarState,
   type PlanColor,
   type PlanEvent,
   type PlanRepeat
 } from '@shared/types'
 import { cn } from '../lib/cn'
 import {
+  allDayOn,
   COLOR_LABEL,
   createDayFormatter,
   createPlanTimeFormatter,
@@ -36,6 +49,7 @@ import {
   weekDays,
   weekStart,
   type PlacedEvent,
+  type ShownEvent,
   type WallClock
 } from '../lib/planning'
 import { useClockValue } from '../lib/useClockValue'
@@ -141,7 +155,7 @@ interface BlockProps {
   placed: PlacedEvent
   past: boolean
   formatTime: (time: string) => string
-  onPick: (event: PlanEvent) => void
+  onPick: (event: ShownEvent) => void
 }
 
 /**
@@ -157,6 +171,10 @@ function Block({ placed, past, formatTime, onPick }: BlockProps): ReactNode {
   const { event, start, end, lane, lanes } = placed
   const height = Math.max(((end - start) / 60) * HOUR_PX, MIN_BLOCK_PX)
   const range = formatPlanRange(event, formatTime)
+  const google = event.source === 'google'
+  // Google's events never repeat here -- each recurrence arrives on its own --
+  // so the corner holds at most one of the two marks.
+  const marked = google || event.repeat !== 'none'
 
   const style = {
     '--plan': planColorVar(event.color),
@@ -169,7 +187,12 @@ function Block({ placed, past, formatTime, onPick }: BlockProps): ReactNode {
   return (
     <button
       type="button"
-      title={[range, event.title, event.repeat === 'none' ? null : REPEAT_LABEL[event.repeat]]
+      title={[
+        range,
+        event.title,
+        event.repeat === 'none' ? null : REPEAT_LABEL[event.repeat],
+        google ? 'Google Calendar' : null
+      ]
         .filter(Boolean)
         .join(' · ')}
       onClick={(click) => {
@@ -190,7 +213,7 @@ function Block({ placed, past, formatTime, onPick }: BlockProps): ReactNode {
       <span
         className={cn(
           'text-meta font-medium leading-tight text-fg',
-          event.repeat !== 'none' && '@min-[5.25rem]:pr-4'
+          marked && '@min-[5.25rem]:pr-4'
         )}
       >
         {event.title}
@@ -201,7 +224,13 @@ function Block({ placed, past, formatTime, onPick }: BlockProps): ReactNode {
       <span className="truncate text-meta leading-tight tabular-nums text-fg-muted @min-[5.25rem]:hidden">
         {formatTime(event.start)}
       </span>
-      {event.repeat === 'none' ? null : (
+      {google ? (
+        <ExternalLink
+          className="absolute right-1.5 top-1.5 hidden size-3 text-fg-faint @min-[5.25rem]:block"
+          strokeWidth={2}
+          aria-hidden
+        />
+      ) : event.repeat === 'none' ? null : (
         <Repeat
           className="absolute right-1.5 top-1.5 hidden size-3 text-fg-faint @min-[5.25rem]:block"
           strokeWidth={2}
@@ -214,22 +243,29 @@ function Block({ placed, past, formatTime, onPick }: BlockProps): ReactNode {
 
 interface TimetableProps {
   days: string[]
-  events: readonly PlanEvent[]
+  events: readonly ShownEvent[]
+  allDay: readonly AllDayExternalEvent[]
   now: WallClock
   hour12: boolean
   formatTime: (time: string) => string
   onSlot: (day: string, minute: number) => void
-  onPick: (event: PlanEvent) => void
+  onPick: (event: ShownEvent) => void
+  onOpenLink: (link: string) => void
 }
+
+/** All-day chips shown per day before the rest collapse into a count. */
+const ALL_DAY_SHOWN = 2
 
 function Timetable({
   days,
   events,
+  allDay,
   now,
   hour12,
   formatTime,
   onSlot,
-  onPick
+  onPick,
+  onOpenLink
 }: TimetableProps): ReactNode {
   const scroller = useRef<HTMLDivElement>(null)
   const formatWeekday = useMemo(() => createDayFormatter({ weekday: 'short' }), [])
@@ -239,6 +275,8 @@ function Timetable({
     [days, events]
   )
   const grid = hour12 ? COLUMNS_12H : COLUMNS_24H
+  const allDayColumns = useMemo(() => days.map((day) => allDayOn(allDay, day)), [days, allDay])
+  const anyAllDay = allDayColumns.some((column) => column.length > 0)
 
   // Opens on the week's earliest entry, or the current hour, instead of at
   // midnight. Only when the week changes: saving an entry must not yank the
@@ -277,6 +315,42 @@ function Timetable({
           </div>
         ))}
       </div>
+
+      {/* Google's all-day events have no hour to sit in, so they get a strip
+          of their own above the grid -- only in weeks that have any. */}
+      {anyAllDay ? (
+        <div className={cn(grid, GUTTERED, 'shrink-0 overflow-y-hidden border-b border-hover py-1.5')}>
+          <span className="self-center pr-2.5 text-right text-meta text-fg-faint">All day</span>
+          {allDayColumns.map((column, index) => {
+            const extra = column.slice(ALL_DAY_SHOWN)
+            return (
+              <div key={days[index]} className="flex min-w-0 flex-col gap-1 px-[2px]">
+                {column.slice(0, ALL_DAY_SHOWN).map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    title={`${event.title} · Google Calendar`}
+                    disabled={!event.link}
+                    onClick={() => event.link && onOpenLink(event.link)}
+                    style={{ '--plan': planColorVar(event.color) } as CSSProperties}
+                    className="transition-soft truncate rounded-md bg-[color-mix(in_oklab,var(--plan)_22%,transparent)] px-1.5 py-0.5 text-left text-meta font-medium leading-tight text-fg shadow-[inset_3px_0_0_var(--plan)] enabled:hover:bg-[color-mix(in_oklab,var(--plan)_34%,transparent)]"
+                  >
+                    {event.title}
+                  </button>
+                ))}
+                {extra.length > 0 ? (
+                  <span
+                    title={extra.map((event) => event.title).join('\n')}
+                    className="truncate px-1.5 text-meta leading-tight text-fg-faint"
+                  >
+                    +{extra.length} more
+                  </span>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
 
       <div ref={scroller} className={cn(GUTTERED, 'min-h-0 flex-1 overflow-y-auto')}>
         <div className={cn(grid, 'relative')} style={{ height: 24 * HOUR_PX }}>
@@ -546,7 +620,12 @@ function EntryEditor({
 }
 
 interface PlanningProps {
+  /** Local entries only: these are what `onChange` writes back. */
   events: readonly PlanEvent[]
+  /** Google's timed events, already in the clock's zone. Read-only. */
+  external: readonly ShownEvent[]
+  allDay: readonly AllDayExternalEvent[]
+  calendar: CalendarState
   timeZone: string
   hour12: boolean
   onChange: (events: PlanEvent[]) => void
@@ -558,7 +637,16 @@ interface PlanningProps {
  * block of its colour. Clicking an empty slot starts an entry there;
  * clicking a block edits it.
  */
-export function Planning({ events, timeZone, hour12, onChange, onClose }: PlanningProps): ReactNode {
+export function Planning({
+  events,
+  external,
+  allDay,
+  calendar,
+  timeZone,
+  hour12,
+  onChange,
+  onClose
+}: PlanningProps): ReactNode {
   const wallClock = useMemo(() => createWallClockFormatter(timeZone), [timeZone])
   const read = useCallback((at: number) => readWallClock(wallClock, at), [wallClock])
   // Minute resolution: the "now" line moves, and the panel re-renders, once a minute.
@@ -588,6 +676,8 @@ export function Planning({ events, timeZone, hour12, onChange, onClose }: Planni
   )
   const days = useMemo(() => weekDays(week), [week])
   const full = events.length >= MAX_PLAN_EVENTS
+  const shown = useMemo<ShownEvent[]>(() => [...events, ...external], [events, external])
+  const synced = calendar.status === 'ok' || calendar.status === 'stale' || calendar.status === 'loading'
 
   const startEntry = (date: string, start: number): void => {
     if (full) return
@@ -660,6 +750,25 @@ export function Planning({ events, timeZone, hour12, onChange, onClose }: Planni
           </div>
 
           <div className="flex items-center gap-2">
+            {synced ? (
+              <button
+                type="button"
+                onClick={() => void window.api.calendar.refresh()}
+                title={
+                  calendar.status === 'stale'
+                    ? `Google Calendar · couldn't sync (${calendar.error ?? 'unknown error'})`
+                    : 'Google Calendar · sync now'
+                }
+                className="transition-soft flex items-center gap-1.5 rounded-full px-3 py-2 text-meta font-medium text-fg-faint hover:bg-hover hover:text-fg"
+              >
+                <RefreshCw
+                  className={cn('size-3.5', calendar.status === 'loading' && 'animate-spin')}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                {calendar.status === 'stale' ? 'Offline' : 'Google'}
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={full}
@@ -688,12 +797,21 @@ export function Planning({ events, timeZone, hour12, onChange, onClose }: Planni
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
           <Timetable
             days={days}
-            events={events}
+            events={shown}
+            allDay={allDay}
             now={now}
             hour12={hour12}
             formatTime={formatTime}
             onSlot={startEntry}
-            onPick={(event) => setEditor({ editing: event, colorChosen: true, draft: draftFrom(event) })}
+            onPick={(event) => {
+              // Google's events are edited in Google, where the click takes them.
+              if (event.source === 'google') {
+                if (event.link) window.api.calendar.openEvent(event.link)
+                return
+              }
+              setEditor({ editing: event, colorChosen: true, draft: draftFrom(event) })
+            }}
+            onOpenLink={(link) => window.api.calendar.openEvent(link)}
           />
         </div>
 

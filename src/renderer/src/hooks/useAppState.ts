@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
-import type { AppConfig, ResolvedTheme, WeatherState } from '@shared/types'
+import type { AppConfig, CalendarState, ResolvedTheme, WeatherState } from '@shared/types'
 
 export function useConfig(): {
   config: AppConfig | null
@@ -41,6 +41,31 @@ export function useWeather(): WeatherState {
       if (active) setState(next)
     })
     const unsubscribe = window.api.weather.subscribe(setState)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  return state
+}
+
+export function useCalendar(): CalendarState {
+  const [state, setState] = useState<CalendarState>({
+    status: 'disconnected',
+    account: null,
+    calendars: [],
+    events: [],
+    fetchedAt: null,
+    error: null
+  })
+
+  useEffect(() => {
+    let active = true
+    void window.api.calendar.get().then((next) => {
+      if (active) setState(next)
+    })
+    const unsubscribe = window.api.calendar.subscribe(setState)
     return () => {
       active = false
       unsubscribe()

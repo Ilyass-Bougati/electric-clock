@@ -6,3 +6,6 @@ dist/
 .DS_Store
 release/
 .digit-width-probe.html
+.env
+.env.*
+!.env.example
