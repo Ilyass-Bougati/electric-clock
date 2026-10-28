@@ -4,10 +4,13 @@ import { join } from 'node:path'
 import {
   CONFIG_VERSION,
   DEFAULT_CONFIG,
+  MAX_PLAN_EVENTS,
+  MAX_PLAN_TITLE,
   MAX_TIMER_MS,
   MAX_WALLPAPER_DIM,
   MAX_ZOOM,
   MIN_TIMER_MS,
+  PLAN_COLORS,
   MIN_WALLPAPER_DIM,
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
@@ -19,6 +22,9 @@ import {
   type CustomPalette,
   type FontChoice,
   type PaletteChoice,
+  type PlanColor,
+  type PlanEvent,
+  type PlanRepeat,
   type Wallpaper,
   type HourCyclePreference,
   type TemperatureUnit,
@@ -98,6 +104,68 @@ function normalizeCustomPalette(raw: unknown): CustomPalette {
     accent: pick(raw.accent, fallback.accent),
     accentAlt: pick(raw.accentAlt, fallback.accentAlt)
   }
+}
+
+const PLAN_ID = /^[a-z0-9-]{1,64}$/i
+const PLAN_DATE = /^\d{4}-\d{2}-\d{2}$/
+const PLAN_TIME = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** Catches 2026-02-31 and the like, which the pattern alone lets through. */
+function isCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  )
+}
+
+/**
+ * For entries saved before they had a colour: derived from the id, so each
+ * keeps the same one from run to run and a timetable does not come back as
+ * a wall of a single colour.
+ */
+function colorForId(id: string): PlanColor {
+  let hash = 0
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return PLAN_COLORS[hash % PLAN_COLORS.length]
+}
+
+function normalizePlanEvent(raw: unknown): PlanEvent | null {
+  if (!isRecord(raw)) return null
+
+  const { id, date, start, end } = raw
+  const title = typeof raw.title === 'string' ? raw.title.trim().slice(0, MAX_PLAN_TITLE) : ''
+  if (typeof id !== 'string' || !PLAN_ID.test(id)) return null
+  if (title.length === 0) return null
+  if (typeof date !== 'string' || !PLAN_DATE.test(date) || !isCalendarDate(date)) return null
+  if (typeof start !== 'string' || !PLAN_TIME.test(start)) return null
+
+  return {
+    id,
+    title,
+    date,
+    start,
+    // Zero-padded, so comparing the strings compares the times.
+    end: typeof end === 'string' && PLAN_TIME.test(end) && end > start ? end : null,
+    repeat: oneOf<PlanRepeat>(raw.repeat, ['none', 'daily', 'weekly'], 'none'),
+    color: oneOf<PlanColor>(raw.color, PLAN_COLORS, colorForId(id))
+  }
+}
+
+/** Entry by entry, like the rest: one malformed entry costs only itself. */
+function normalizePlanning(raw: unknown): PlanEvent[] {
+  if (!Array.isArray(raw)) return []
+
+  const seen = new Set<string>()
+  const events: PlanEvent[] = []
+  for (const entry of raw) {
+    const event = normalizePlanEvent(entry)
+    if (!event || seen.has(event.id)) continue
+    seen.add(event.id)
+    events.push(event)
+    if (events.length === MAX_PLAN_EVENTS) break
+  }
+  return events
 }
 
 /** A zone string is only accepted if the platform's ICU actually knows it. */
@@ -194,6 +262,7 @@ function normalizeConfig(input: unknown): AppConfig {
       MAX_TIMER_MS,
       Math.max(MIN_TIMER_MS, Math.round(finite(raw.timerDuration, DEFAULT_CONFIG.timerDuration)))
     ),
+    planning: normalizePlanning(raw.planning),
     palette: oneOf<PaletteChoice>(
       raw.palette,
       ['weather', 'ember', 'tide', 'custom'],

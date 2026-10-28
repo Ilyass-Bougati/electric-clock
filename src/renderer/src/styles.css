@@ -105,6 +105,19 @@
   --glyph-rain: #4e8ac9;
   --glyph-snow: #7fb4d3;
   --glyph-bolt: #e0aa2e;
+
+  /*
+   * The planning's colours. Only ever laid down as a tint with a solid
+   * edge, so text on top stays the theme's own and keeps its contrast.
+   */
+  --plan-blue: #3f7fd9;
+  --plan-teal: #1f9d92;
+  --plan-green: #3d9a4f;
+  --plan-amber: #d4930f;
+  --plan-orange: #e2702e;
+  --plan-red: #d9484a;
+  --plan-pink: #d24f93;
+  --plan-violet: #8360d6;
 }
 
 /* Dark: a deep neutral, never #000. */
@@ -138,6 +151,15 @@
   --glyph-rain: #6aa6e0;
   --glyph-snow: #9fcfe8;
   --glyph-bolt: #f0c455;
+
+  --plan-blue: #6ea4f0;
+  --plan-teal: #45c7b8;
+  --plan-green: #6cc77c;
+  --plan-amber: #f2bd4a;
+  --plan-orange: #f4975c;
+  --plan-red: #f2777a;
+  --plan-pink: #ef80b9;
+  --plan-violet: #a98cf2;
 }
 
 /*
@@ -364,6 +386,11 @@ button {
 
 input {
   cursor: text;
+}
+
+/* The date and time pickers draw their own icons and popups. */
+:root[data-theme='dark'] input {
+  color-scheme: dark;
 }
 
 :focus-visible {

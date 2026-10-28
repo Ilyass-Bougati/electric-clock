@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import {
+  CalendarDays,
   Clock,
   Copy,
   Hourglass,
@@ -60,6 +61,7 @@ interface TitleBarProps {
   fullScreen: boolean
   /** Fades the whole strip away while a full-screen clock sits idle. */
   dimmed: boolean
+  onOpenPlanning: () => void
   onOpenSettings: () => void
 }
 
@@ -70,6 +72,7 @@ export function TitleBar({
   maximized,
   fullScreen,
   dimmed,
+  onOpenPlanning,
   onOpenSettings
 }: TitleBarProps): ReactNode {
   return (
@@ -130,6 +133,10 @@ export function TitleBar({
           ) : (
             <Maximize className="size-4" strokeWidth={1.75} />
           )}
+        </StripButton>
+
+        <StripButton label="Planning" onClick={onOpenPlanning}>
+          <CalendarDays className="size-4" strokeWidth={1.75} />
         </StripButton>
 
         <StripButton label="Settings" onClick={onOpenSettings}>

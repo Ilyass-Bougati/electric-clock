@@ -76,6 +76,50 @@ export const MIN_TIMER_MS = 1000
 export const MAX_TIMER_MS = 24 * 60 * 60 * 1000 - 1000
 
 /**
+ * How a planned entry comes back. A repeating entry recurs from its `date`
+ * onwards -- every day, or on that date's weekday -- and never before it.
+ */
+export type PlanRepeat = 'none' | 'daily' | 'weekly'
+
+/** Named rather than free hex: each one is tuned per theme in styles.css. */
+export type PlanColor = 'blue' | 'teal' | 'green' | 'amber' | 'orange' | 'red' | 'pink' | 'violet'
+
+export const PLAN_COLORS: readonly PlanColor[] = [
+  'blue',
+  'teal',
+  'green',
+  'amber',
+  'orange',
+  'red',
+  'pink',
+  'violet'
+]
+
+/**
+ * One entry in the planning.
+ *
+ * Dates and times are wall-clock values with no zone of their own. They are
+ * read in whichever zone the clock is showing, so a 09:00 class stays at
+ * 09:00 when the zone override changes instead of shifting by the offset.
+ */
+export interface PlanEvent {
+  id: string
+  title: string
+  /** `YYYY-MM-DD`. For a repeating entry, its first occurrence. */
+  date: string
+  /** `HH:MM`, 24-hour. */
+  start: string
+  /** `HH:MM` and after `start`, or null for an entry that is only a moment. */
+  end: string | null
+  repeat: PlanRepeat
+  color: PlanColor
+}
+
+/** Years of entries, while keeping a corrupted file from growing unbounded. */
+export const MAX_PLAN_EVENTS = 500
+export const MAX_PLAN_TITLE = 120
+
+/**
  * Where the background's two accent colours come from. 'weather' keeps them
  * tied to the current conditions; the rest are fixed. The ground colour is
  * never part of this -- it stays the theme's, so text contrast and the glass
@@ -148,6 +192,7 @@ export interface AppConfig {
   mode: ClockMode
   /** The countdown's last-used length, in milliseconds. */
   timerDuration: number
+  planning: PlanEvent[]
   palette: PaletteChoice
   customPalette: CustomPalette
   windowBounds: WindowBounds
@@ -310,6 +355,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   wallpaperDim: 0.45,
   mode: 'clock',
   timerDuration: 5 * 60 * 1000,
+  planning: [],
   palette: 'weather',
   customPalette: { accent: '#e0913f', accentAlt: '#4b7fb5' },
   windowBounds: { x: null, y: null, width: 880, height: 620 },

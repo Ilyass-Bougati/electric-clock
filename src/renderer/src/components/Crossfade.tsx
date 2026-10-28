@@ -7,6 +7,8 @@ interface CrossfadeProps<T extends string> {
   /** Must match the CSS animation, or the outgoing copy lingers. */
   duration?: number
   className?: string
+  /** Layout for the incoming copy, e.g. to let it shrink inside a flex column. */
+  contentClassName?: string
   /** Positioning for the outgoing copy, which is taken out of flow. */
   leavingClassName?: string
   children: (value: T) => ReactNode
@@ -27,6 +29,7 @@ export function Crossfade<T extends string>({
   value,
   duration = 260,
   className,
+  contentClassName,
   leavingClassName,
   children
 }: CrossfadeProps<T>): ReactNode {
@@ -56,7 +59,7 @@ export function Crossfade<T extends string>({
           {children(leaving)}
         </div>
       )}
-      <div key={`current-${current}`} className="mode-entering">
+      <div key={`current-${current}`} className={cn('mode-entering', contentClassName)}>
         {children(current)}
       </div>
     </div>

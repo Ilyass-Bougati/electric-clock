@@ -7,8 +7,10 @@ import { Timer, TimerControls } from './components/Timer'
 import { Clock } from './components/Clock'
 import { Crossfade } from './components/Crossfade'
 import { DevMenu } from './components/DevMenu'
+import { Planning } from './components/Planning'
 import { Settings } from './components/Settings'
 import { TitleBar } from './components/TitleBar'
+import { TodayAgenda } from './components/TodayAgenda'
 import { WeatherStrip } from './components/WeatherStrip'
 import {
   useConfig,
@@ -45,6 +47,9 @@ export default function App(): ReactNode {
   const { maximized, fullScreen } = useWindowState()
   const chromeIdle = useIdleChrome(fullScreen)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [planningOpen, setPlanningOpen] = useState(false)
+  // Either panel takes the keyboard and keeps the chrome awake.
+  const panelOpen = settingsOpen || planningOpen
 
   // Detection happens once per launch; an explicit override wins over it.
   const systemTimeZone = useMemo(() => detectTimeZone(), [])
@@ -116,9 +121,9 @@ export default function App(): ReactNode {
         event.preventDefault()
         window.api.window.toggleFullScreen()
       }
-      // Settings owns Escape while it is open, and a ringing alarm owns it
-      // before full screen does.
-      if (event.key === 'Escape' && !settingsOpen) {
+      // An open panel owns Escape, and a ringing alarm owns it before full
+      // screen does.
+      if (event.key === 'Escape' && !panelOpen) {
         if (mode === 'timer' && getTimerStatus() === 'ringing') {
           dismissTimer()
           return
@@ -128,7 +133,7 @@ export default function App(): ReactNode {
 
       // Mode keys, but never while a field has focus -- a space in the city
       // search must stay a space.
-      if (settingsOpen || typing) return
+      if (panelOpen || typing) return
 
       if (mode === 'chrono') {
         if (event.key === ' ' || event.code === 'Space') {
@@ -165,7 +170,7 @@ export default function App(): ReactNode {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [fullScreen, settingsOpen, mode])
+  }, [fullScreen, panelOpen, mode])
 
   if (!config) {
     // A single frame at most, and the window is already painted in the
@@ -186,11 +191,14 @@ export default function App(): ReactNode {
       />
 
       {/*
-        Three rows, the middle one sized to its content: that puts the clock
-        at the exact centre of the window and keeps it there, whatever the
-        weather strip below happens to contain.
+        Three rows, the middle one sized to its content. The clock sits a
+        little above centre so today's planning has room beneath the weather,
+        and the split is the same in every mode, so switching between them
+        still moves nothing. The outer rows hold their share even when the
+        bottom one has more to say than fits -- the planning trims itself
+        there rather than pushing the clock upwards.
       */}
-      <main className="relative grid h-full grid-rows-[1fr_auto_1fr] px-10">
+      <main className="relative grid h-full grid-rows-[minmax(0,2fr)_auto_minmax(0,3fr)] px-10">
         <div aria-hidden />
 
         <div className="flex items-center justify-center">
@@ -209,8 +217,12 @@ export default function App(): ReactNode {
           </Crossfade>
         </div>
 
-        <div className="flex items-start justify-center pt-[clamp(2rem,6vh,4.5rem)]">
-          <Crossfade value={mode} leavingClassName="inset-x-0 top-0 flex justify-center">
+        <div className="flex min-h-0 flex-col items-center gap-[clamp(0.75rem,2.5vh,1.75rem)] overflow-hidden pb-[clamp(1rem,3vh,2rem)] pt-[clamp(2rem,6vh,4.5rem)]">
+          <Crossfade
+            value={mode}
+            className="shrink-0"
+            leavingClassName="inset-x-0 top-0 flex justify-center"
+          >
             {(shown) =>
               shown === 'chrono' ? (
                 <ChronoControls />
@@ -226,6 +238,25 @@ export default function App(): ReactNode {
               )
             }
           </Crossfade>
+
+          {/* Only the clock has a "today"; the stopwatch and timer stay bare. */}
+          <Crossfade
+            value={mode}
+            className="flex min-h-0 w-full flex-col items-center"
+            contentClassName="flex min-h-0 w-full flex-col items-center"
+            leavingClassName="inset-x-0 top-0 flex justify-center"
+          >
+            {(shown) =>
+              shown === 'clock' ? (
+                <TodayAgenda
+                  events={config.planning}
+                  timeZone={timeZone}
+                  hour12={hour12}
+                  onOpen={() => setPlanningOpen(true)}
+                />
+              ) : null
+            }
+          </Crossfade>
         </div>
       </main>
 
@@ -235,13 +266,24 @@ export default function App(): ReactNode {
         onSelectMode={(next) => update({ mode: next })}
         maximized={maximized}
         fullScreen={fullScreen}
-        dimmed={chromeIdle && !settingsOpen}
+        dimmed={chromeIdle && !panelOpen}
+        onOpenPlanning={() => setPlanningOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* Vite folds this to false when building, so the dev menu and
           everything it imports drop out of the shipped bundle. */}
       {import.meta.env.DEV ? <DevMenu /> : null}
+
+      {planningOpen ? (
+        <Planning
+          events={config.planning}
+          timeZone={timeZone}
+          hour12={hour12}
+          onChange={(planning) => update({ planning })}
+          onClose={() => setPlanningOpen(false)}
+        />
+      ) : null}
 
       {settingsOpen ? (
         <Settings
